@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>记账助手 Pro</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* --- 全局样式 --- */
+        :root {
+            --primary-color: #FFDA44; /* 品牌黄 */
+            --text-main: #333333;
+            --text-sub: #999999;
+            --bg-color: #F5F5F5;
+            --white: #FFFFFF;
+            --border-color: #EEEEEE;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden; }
+
+        #app {
+            max-width: 480px; margin: 0 auto; background: var(--bg-color);
+            height: 100%; position: relative; display: flex; flex-direction: column;
+        }
+
+        .page { flex: 1; overflow-y: auto; display: none; padding-bottom: 70px; background: var(--bg-color); }
+        .page-fullscreen {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            max-width: 480px; margin: auto; z-index: 200;
+            padding-bottom: 0; background: var(--bg-color);
+            display: none; flex-direction: column;
+        }
+
+        /* --- 底部导航 --- */
+        .tab-bar {
+            position: absolute; bottom: 0; width: 100%; height: 55px;
+            background: var(--white); display: none; border-top: 1px solid var(--border-color);
+            z-index: 100; align-items: flex-end;
+        }
+        .tab-item {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: var(--text-sub); font-size: 10px; cursor: pointer; height: 100%; padding-bottom: 2px;
+        }
+        .tab-item i { font-size: 20px; margin-bottom: 3px; }
+        .tab-item.active { color: #FFA000; }
+
+        .tab-item-center {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            height: 100%; position: relative; overflow: visible;
+        }
+        .add-btn-wrapper {
+            position: absolute; top: -20px;
+            background: var(--primary-color); width: 50px; height: 50px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(255, 218, 68, 0.4); z-index: 101;
+        }
+        .add-btn-wrapper i { color: #333; font-size: 20px; }
+        .center-text { margin-bottom: 5px; color: var(--text-sub); font-size: 10px; }
+
+        /* --- 通用组件 --- */
+        .common-header {
+            background: var(--primary-color); padding: 15px; display: flex; align-items: center;
+            font-size: 18px; position: relative;
+        }
+        .back-btn { padding: 5px 15px 5px 0; cursor: pointer; font-size: 20px; }
+        .header-title { flex: 1; text-align: center; font-weight: bold; margin-right: 20px; }
+
+        .btn-block {
+            width: 100%; padding: 15px; background: var(--primary-color); border: none;
+            border-radius: 25px; font-size: 16px; font-weight: bold; color: #333; margin-top: 30px; cursor: pointer;
+        }
+        .link-text { color: #555; font-size: 14px; margin-top: 15px; text-decoration: underline; cursor: pointer; }
+
+        /* 登录/注册 */
+        .auth-container { padding: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        .login-logo { text-align: center; margin-bottom: 40px; }
+        .login-logo i { font-size: 60px; color: var(--primary-color); }
+        .form-group { width: 100%; margin-bottom: 20px; }
+        .form-input {
+            width: 100%; padding: 15px; border: none; border-bottom: 1px solid #ddd;
+            outline: none; font-size: 16px; background: transparent;
+        }
+
+        /* --- 首页 --- */
+        .home-header { background: var(--primary-color); padding: 20px 15px 10px; position: sticky; top: 0; z-index: 10; }
+        .month-select {
+            font-size: 18px; font-weight: bold; display: flex; align-items: center;
+            cursor: pointer; padding: 5px 0;
+        }
+
+        .year-control {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; margin-bottom: 10px; border-bottom: 1px solid #eee; font-size: 18px; font-weight: bold;
+        }
+        .year-btn { cursor: pointer; padding: 5px 15px; background: #f0f0f0; border-radius: 6px; font-size: 14px; }
+
+        .month-picker-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 500; display: none; align-items: flex-end;
+        }
+        .month-picker-body {
+            background: white; width: 100%; max-width: 480px; margin: 0 auto;
+            border-radius: 20px 20px 0 0; padding: 20px; animation: slideUp 0.3s;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .year-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 10px; }
+        .month-item {
+            padding: 10px; background: #f5f5f5; border-radius: 8px; text-align: center; font-size: 14px; cursor: pointer;
+        }
+        .month-item.active { background: var(--primary-color); font-weight: bold; }
+
+        /* 列表样式 */
+        .overview-card { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+        .day-header { display: flex; justify-content: space-between; color: var(--text-sub); font-size: 12px; padding: 10px 15px; background: #f9f9f9; }
+        .record-item { display: flex; align-items: center; padding: 15px; background: var(--white); border-bottom: 1px solid #f5f5f5; }
+        .cat-icon { width: 40px; height: 40px; background: #F0F0F0; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px; color: #666; }
+        .record-info { flex: 1; }
+        .record-amount { font-size: 16px; font-weight: bold; }
+
+        /* --- 个人中心 --- */
+        .user-header-bg { background: var(--primary-color); height: 150px; padding: 20px; display: flex; justify-content: flex-end; }
+        .user-card { background: var(--white); margin: -80px 15px 20px; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; align-items: center; }
+        .avatar { width: 64px; height: 64px; border-radius: 50%; background: #ddd; margin-right: 15px; overflow: hidden; }
+        .menu-list { background: var(--white); margin: 0 15px; border-radius: 12px; overflow: hidden; }
+        .menu-item { padding: 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f9f9f9; font-size: 16px; cursor: pointer; }
+
+        /* --- 记账页 --- */
+        .record-header-bar { background: var(--primary-color); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; }
+        .type-switch { background: #333; border-radius: 8px; padding: 2px; display: flex; }
+        .type-btn { padding: 6px 24px; color: var(--primary-color); font-size: 14px; border-radius: 6px; cursor: pointer; }
+        .type-btn.active { background: var(--primary-color); color: #333; font-weight: bold; }
+        .category-grid { flex: 1; padding: 20px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; align-content: start; overflow-y: auto; background: var(--white); }
+        .cat-circle { width: 50px; height: 50px; background: #F5F5F5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+        .cat-item.selected .cat-circle { background: var(--primary-color); }
+        .cat-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .cat-name { font-size: 12px; color: var(--text-sub); }
+
+        /* 键盘 */
+        .keyboard-area { background: var(--white); box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+        .input-display { padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; }
+        .keypad { display: grid; grid-template-columns: 3fr 1fr; height: 220px; }
+        .nums { display: grid; grid-template-columns: repeat(3, 1fr); }
+        .key { display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 500; border-right: 1px solid var(--border-color); border-top: 1px solid var(--border-color); cursor: pointer; }
+        .key:active { background: #f0f0f0; }
+        .key-ok { background: var(--primary-color); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; grid-row: span 2; border-top: 1px solid var(--border-color); cursor: pointer; }
+        .ops { display: grid; grid-template-rows: 1fr 1fr; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <div id="page-login" class="page-fullscreen" style="display: flex;">
+        <div class="auth-container">
+            <div class="login-logo">
+                <i class="fas fa-wallet"></i>
+                <h2>记账助手</h2>
+            </div>
+            <div class="form-group"><input type="text" class="form-input" placeholder="账号"></div>
+            <div class="form-group"><input type="password" class="form-input" placeholder="密码"></div>
+            <button class="btn-block" onclick="router.switchTab('home')">登 录</button>
+            <div class="link-text" onclick="router.push('register')">没有账号？点击注册</div>
+        </div>
+    </div>
+
+    <div id="page-register" class="page-fullscreen">
+        <div class="common-header">
+            <i class="fas fa-chevron-left back-btn" onclick="router.back()"></i>
+            <div class="header-title">新用户注册</div>
+            <div style="width: 25px;"></div>
+        </div>
+        <div class="auth-container" style="justify-content: flex-start; padding-top: 40px;">
+            <div class="form-group"><input type="text" class="form-input" placeholder="请输入手机号/邮箱"></div>
+            <div class="form-group"><input type="text" class="form-input" placeholder="设置用户名"></div>
+            <div class="form-group"><input type="password" class="form-input" placeholder="设置密码"></div>
+            <div class="form-group"><input type="password" class="form-input" placeholder="确认密码"></div>
+            <button class="btn-block" onclick="alert('注册成功！请登录'); router.back();">立即注册</button>
+        </div>
+    </div>
+
+    <div id="page-home" class="page">
+        <div class="home-header">
+            <div class="overview-card" style="align-items: center; margin-bottom: 20px;">
+                <div class="month-select" onclick="app.showMonthPicker()">
+                    <span id="current-month-text">加载中...</span>
+                    <i class="fas fa-caret-down" style="font-size: 16px; margin-left: 8px;"></i>
+                </div>
+                <div style="font-size: 14px; color: #333;">本月结余 <b id="total-balance" style="font-size: 18px;">0.00</b></div>
+            </div>
+            <div class="overview-card">
+                <div style="background: rgba(255,255,255,0.3); padding: 10px; border-radius: 8px; flex:1; margin-right: 10px;">
+                    <div style="font-size: 12px;">本月支出</div>
+                    <div style="font-size: 16px; font-weight: bold; margin-top: 5px;" id="total-expense">¥ 0.00</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.3); padding: 10px; border-radius: 8px; flex:1;">
+                    <div style="font-size: 12px;">本月收入</div>
+                    <div style="font-size: 16px; font-weight: bold; margin-top: 5px;" id="total-income">¥ 0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="record-list" id="record-list">
+            <div style="text-align:center;padding:40px;color:#999;">加载中...</div>
+        </div>
+    </div>
+
+    <div id="month-picker-overlay" class="month-picker-overlay" onclick="this.style.display='none'">
+        <div class="month-picker-body" onclick="event.stopPropagation()">
+            <div class="year-control">
+                <div class="year-btn" onclick="app.changeYear(-1)"><i class="fas fa-chevron-left"></i></div>
+                <div id="picker-year-display">2026年</div>
+                <div class="year-btn" onclick="app.changeYear(1)"><i class="fas fa-chevron-right"></i></div>
+            </div>
+            <div class="year-grid" id="picker-months-grid"></div>
+        </div>
+    </div>
+
+    <div id="page-user" class="page">
+        <div class="user-header-bg">
+            <i class="fas fa-cog" style="font-size: 22px; color: #333; cursor: pointer;" onclick="router.push('settings')"></i>
+        </div>
+        <div class="user-card">
+            <div class="avatar"><img src="https://i.pravatar.cc/150?img=12" alt="Av" style="width:100%;height:100%;"></div>
+            <div><h3 id="user-nickname">下雨天</h3><div style="color: #999; font-size: 13px;">坚持记账 1 天</div></div>
+        </div>
+        <div class="menu-list">
+            <div class="menu-item" onclick="router.push('book-detail')"><span>我的账本</span><i class="fas fa-chevron-right" style="color:#ccc;"></i></div>
+            <div class="menu-item" onclick="exportData()"><span>账单导出</span><i class="fas fa-file-export" style="color:#ccc;"></i></div>
+            <div class="menu-item" onclick="router.push('recycle-bin')"><span>回收站</span><i class="fas fa-chevron-right" style="color:#ccc;"></i></div>
+        </div>
+        <button class="btn-block" style="background:white; border:1px solid #ddd; color:red; margin-top:40px;" onclick="location.reload()">退出登录</button>
+    </div>
+
+    <div id="page-settings" class="page-fullscreen">
+        <div class="common-header">
+            <i class="fas fa-chevron-left back-btn" onclick="router.back()"></i>
+            <div class="header-title">通用设置</div>
+            <div style="width: 25px;"></div>
+        </div>
+        <div class="menu-list" style="margin-top: 15px;">
+            <div class="menu-item"><span>记账提醒</span><i class="fas fa-toggle-on" style="color:#4CAF50;"></i></div>
+            <div class="menu-item"><span>安全保护</span><i class="fas fa-chevron-right" style="color:#ccc;"></i></div>
+            <div class="menu-item" onclick="alert('已是最新版本')"><span>关于我们</span><span>v1.0.2</span></div>
+        </div>
+    </div>
+
+    <div id="page-statistics" class="page">
+        <div class="home-header">
+            <div style="font-size: 18px; font-weight: bold; padding: 15px;">数据统计</div>
+        </div>
+        <div style="padding: 15px;">
+            <div id="stats-content" style="text-align:center;padding:40px;color:#999;">加载中...</div>
+        </div>
+    </div>
+
+    <div id="page-discover" class="page">
+        <div class="home-header">
+            <div style="font-size: 18px; font-weight: bold; padding: 15px;">发现</div>
+        </div>
+        <div style="padding: 15px;">
+            <div class="menu-list">
+                <div class="menu-item" onclick="showRandomTip()">
+                    <span><i class="fas fa-lightbulb" style="color:#FFDA44;margin-right:10px;"></i>记账小贴士</span>
+                    <i class="fas fa-chevron-right" style="color:#ccc;"></i>
+                </div>
+                <div class="menu-item" onclick="showExpenseAnalysis()">
+                    <span><i class="fas fa-chart-bar" style="color:#4CAF50;margin-right:10px;"></i>消费分析</span>
+                    <i class="fas fa-chevron-right" style="color:#ccc;"></i>
+                </div>
+                <div class="menu-item" onclick="showBudgetSuggestion()">
+                    <span><i class="fas fa-wallet" style="color:#2196F3;margin-right:10px;"></i>预算建议</span>
+                    <i class="fas fa-chevron-right" style="color:#ccc;"></i>
+                </div>
+                <div class="menu-item" onclick="showAchievements()">
+                    <span><i class="fas fa-trophy" style="color:#FF9800;margin-right:10px;"></i>成就系统</span>
+                    <i class="fas fa-chevron-right" style="color:#ccc;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-recycle-bin" class="page-fullscreen">
+        <div class="common-header">
+            <i class="fas fa-chevron-left back-btn" onclick="router.back()"></i>
+            <div class="header-title">回收站</div>
+            <div style="width: 25px;"></div>
+        </div>
+        <div id="recycle-bin-content" style="padding: 15px;">
+            <div style="text-align:center;padding:40px;color:#999;">加载中...</div>
+        </div>
+    </div>
+
+    <div id="page-edit-record" class="page-fullscreen" style="z-index: 500;">
+        <div class="common-header">
+            <i class="fas fa-chevron-left back-btn" onclick="router.back()"></i>
+            <div class="header-title">编辑记录</div>
+            <div style="width: 25px;"></div>
+        </div>
+        <div style="padding: 20px;">
+            <div id="edit-record-content">加载中...</div>
+        </div>
+    </div>
+
+    <div id="page-book-detail" class="page-fullscreen">
+        <div class="common-header">
+            <i class="fas fa-chevron-left back-btn" onclick="router.back()"></i>
+            <div class="header-title">默认账本</div>
+            <i class="fas fa-ellipsis-h"></i>
+        </div>
+        <div style="padding:20px;">
+            <div style="background:var(--white); padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.05); text-align:center;">
+                <div class="avatar" style="width:60px;height:60px;margin:0 auto 15px;"><img src="https://i.pravatar.cc/150?img=12" style="width:100%;"></div>
+                <h3 style="margin-bottom: 5px;">个人日常账本</h3>
+                <div style="color:#999; font-size:12px; margin-bottom: 20px;">创建于：2026-01-23</div>
+
+                <div style="display:flex; justify-content:space-around; padding-top:20px; border-top:1px solid #eee;">
+                    <div>
+                        <div style="font-size:20px; font-weight:bold; color:var(--text-main);" id="book-record-count">--</div>
+                        <div style="font-size:12px; color:#999; margin-top:5px;">总笔数</div>
+                    </div>
+                    <div>
+                        <div style="font-size:20px; font-weight:bold; color:var(--text-main);" id="book-total-expense">--</div>
+                        <div style="font-size:12px; color:#999; margin-top:5px;">本月支出</div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-block" style="background:#f5f5f5; color:#f44336; margin-top:30px;" onclick="alert('默认账本不可删除')">删除账本</button>
+        </div>
+    </div>
+
+    <div id="page-record" class="page-fullscreen" style="z-index: 400;">
+        <div class="record-header-bar">
+            <i class="fas fa-chevron-left back-btn" onclick="router.back()"></i>
+            <div class="type-switch">
+                <div class="type-btn active" onclick="recorder.switchType('expense', this)">支出</div>
+                <div class="type-btn" onclick="recorder.switchType('income', this)">收入</div>
+            </div>
+            <div style="width: 22px;"></div>
+        </div>
+        <div class="category-grid" id="category-grid"></div>
+        <div class="keyboard-area">
+            <div class="input-display">
+                <div style="display:flex;align-items:center;font-weight:bold;"><i id="current-icon" class="fas fa-utensils" style="margin-right:10px;color:#FFDA44;font-size:24px;"></i><span id="current-cat-name">餐饮</span></div>
+                <div class="input-value" id="amount-display">0.00</div>
+            </div>
+            <div style="padding: 10px 15px; border-top: 1px solid var(--border-color);">
+                <input type="text" id="remark-input" placeholder="添加备注（可选）" style="width:100%; padding:10px; border:none; border-bottom:1px solid #eee; outline:none; font-size:14px;">
+            </div>
+            <div class="keypad">
+                <div class="nums">
+                    <div class="key" onclick="recorder.input('7')">7</div><div class="key" onclick="recorder.input('8')">8</div><div class="key" onclick="recorder.input('9')">9</div>
+                    <div class="key" onclick="recorder.input('4')">4</div><div class="key" onclick="recorder.input('5')">5</div><div class="key" onclick="recorder.input('6')">6</div>
+                    <div class="key" onclick="recorder.input('1')">1</div><div class="key" onclick="recorder.input('2')">2</div><div class="key" onclick="recorder.input('3')">3</div>
+                    <div class="key" onclick="recorder.input('.')">.</div><div class="key" onclick="recorder.input('0')">0</div><div class="key" onclick="recorder.clear()">清空</div>
+                </div>
+                <div class="ops">
+                    <div class="key" onclick="recorder.del()"><i class="fas fa-backspace"></i></div>
+                    <div class="key-ok" onclick="recorder.submit()">完成</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-bar" id="nav-bar">
+        <div class="tab-item active" onclick="router.switchTab('home')"><i class="fas fa-home"></i><span>明细</span></div>
+        <div class="tab-item" onclick="router.switchTab('statistics')"><i class="fas fa-chart-pie"></i><span>统计</span></div>
+
+        <div class="tab-item-center" onclick="router.openRecord()">
+            <div class="add-btn-wrapper"><i class="fas fa-plus"></i></div>
+            <span class="center-text">记一笔</span>
+        </div>
+
+        <div class="tab-item" onclick="router.switchTab('discover')"><i class="fas fa-compass"></i><span>发现</span></div>
+        <div class="tab-item" onclick="router.switchTab('user')"><i class="fas fa-user"></i><span>我的</span></div>
+    </div>
+
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:8080/api';
+
+    const authStore = {
+        getToken() { return localStorage.getItem('moneyNote_token'); },
+        setToken(token) { localStorage.setItem('moneyNote_token', token); },
+        clear() {
+            localStorage.removeItem('moneyNote_token');
+            localStorage.removeItem('moneyNote_user');
+        },
+        getUser() {
+            const raw = localStorage.getItem('moneyNote_user');
+            try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+        },
+        setUser(user) { localStorage.setItem('moneyNote_user', JSON.stringify(user)); }
+    };
+
+    async function apiFetch(path, { method = 'GET', body, auth = false } = {}) {
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (auth) {
+                const token = authStore.getToken();
+                if (!token) {
+                    authStore.clear();
+                    router.init();
+                    throw new Error('未登录，请先登录');
+                }
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+
+            const res = await fetch(`${API_BASE}${path}`, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : undefined,
+                signal: controller.signal
+            }).finally(() => clearTimeout(timeoutId));
+
+            if (!res.ok) {
+                if (res.status === 401) {
+                    authStore.clear();
+                    router.init();
+                    throw new Error('登录已过期，请重新登录');
+                }
+                const errorText = await res.text().catch(() => '');
+                try {
+                    const errorData = JSON.parse(errorText);
+                    throw new Error(errorData.message || `请求失败: ${res.status}`);
+                } catch {
+                    throw new Error(`请求失败: ${res.status} ${res.statusText}`);
+                }
+            }
+
+            const data = await res.json().catch(() => null);
+            if (!data) throw new Error('后端返回不是JSON');
+            if (!data.success) throw new Error(data.message || '请求失败');
+            return data.data;
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                throw new Error('请求超时，请检查网络连接');
+            }
+            if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError') || e.message.includes('fetch')) {
+                throw new Error('无法连接到服务器，请确保后端运行在 http://localhost:8080 且已启动');
+            }
+            throw e;
+        }
+    }
+
+    function updateUserUI(user) {
+        if (!user) return;
+        const nameEl = document.getElementById('user-nickname');
+        if (nameEl) nameEl.innerText = user.nickname || user.username || '未命名';
+        const avatarImg = document.querySelector('#page-user .user-card .avatar img');
+        if (avatarImg && user.avatar) avatarImg.src = user.avatar;
+    }
+
+    const app = {
+        state: {
+            year: new Date().getFullYear(),
+            month: new Date().getMonth() + 1,
+            pickerYear: new Date().getFullYear()
+        },
+        init() { this.updateHeaderUI(); },
+        updateHeaderUI() { document.getElementById('current-month-text').innerText = `${this.state.year}年${this.state.month}月`; },
+        showMonthPicker() {
+            this.state.pickerYear = this.state.year;
+            this.renderPicker();
+            document.getElementById('month-picker-overlay').style.display = 'flex';
+        },
+        changeYear(delta) { this.state.pickerYear += delta; this.renderPicker(); },
+        renderPicker() {
+            document.getElementById('picker-year-display').innerText = `${this.state.pickerYear}年`;
+            const grid = document.getElementById('picker-months-grid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= 12; i++) {
+                const isActive = (this.state.pickerYear === this.state.year && i === this.state.month);
+                const item = document.createElement('div');
+                item.className = `month-item ${isActive ? 'active' : ''}`;
+                item.innerText = `${i}月`;
+                item.onclick = () => this.selectMonth(i);
+                grid.appendChild(item);
+            }
+        },
+        selectMonth(month) {
+            this.state.year = this.state.pickerYear;
+            this.state.month = month;
+            this.updateHeaderUI();
+            document.getElementById('month-picker-overlay').style.display = 'none';
+            loadRecords(); loadMonthlyStats();
+            if (router.currentTab === 'statistics') loadStatistics();
+        }
+    };
+
+
+    let categoryMap = {};
+
+    async function loadCategoriesMap() {
+        try {
+            const allCats = await apiFetch('/categories', { auth: true });
+            categoryMap = {};
+            (allCats || []).forEach(cat => { categoryMap[cat.id] = cat; });
+        } catch (e) { console.error('加载分类映射失败:', e); }
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+        const weekday = weekdays[date.getDay()];
+        const today = new Date();
+        const isToday = (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate());
+        return `${month}月${day}日 ${isToday ? '今天' : '星期' + weekday}`;
+    }
+
+    function formatAmount(amount, type) {
+        const num = parseFloat(amount);
+        const prefix = type === 'expense' ? '-' : '+';
+        return `${prefix} ${num.toFixed(2)}`;
+    }
+
+    async function loadRecords() {
+        const listEl = document.getElementById('record-list');
+        if (!listEl) return;
+        const year = app.state.year; const month = app.state.month;
+        try {
+            listEl.innerHTML = `<div style="text-align:center;padding:40px;color:#999;font-size:14px;"><i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>正在拉取 ${year}年${month}月 账单...</div>`;
+            const monthStr = String(month).padStart(2, '0');
+            const lastDay = new Date(year, month, 0).getDate();
+            const startDate = `${year}-${monthStr}-01`;
+            const endDate = `${year}-${monthStr}-${lastDay}`;
+            const rawRecords = await apiFetch(`/records?startDate=${startDate}&endDate=${endDate}`, { auth: true });
+            const records = (rawRecords || []).filter(r => r.recordDate >= startDate && r.recordDate <= endDate);
+
+            if (!records || records.length === 0) {
+                listEl.innerHTML = `
+                <div style="text-align:center;padding:60px 20px;">
+                    <i class="fas fa-box-open" style="font-size: 50px; color: #E0E0E0; margin-bottom: 15px;"></i>
+                    <div style="color:#666; font-size:16px; font-weight:bold;">${year}年${month}月 暂无记账记录</div>
+                    <div style="color:#999; font-size:12px; margin-top:5px;">每一笔支出都值得被记录</div>
+                    <button onclick="router.openRecord()" style="margin-top: 25px; padding: 10px 25px; background: var(--primary-color); border: none; border-radius: 20px; font-weight: bold; cursor: pointer; color:#333; box-shadow: 0 4px 10px rgba(255, 218, 68, 0.3);">记一笔</button>
+                </div>`;
+                return;
+            }
+
+            const grouped = {};
+            records.forEach(record => {
+                const dateKey = record.recordDate;
+                if (!grouped[dateKey]) grouped[dateKey] = [];
+                grouped[dateKey].push(record);
+            });
+
+            let html = '';
+            const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+            sortedDates.forEach(dateKey => {
+                const dayRecords = grouped[dateKey];
+                const dayTotal = dayRecords.reduce((sum, r) => sum + (r.type === 'expense' ? parseFloat(r.amount) : 0), 0);
+                html += `<div class="day-header"><span>${formatDate(dateKey)}</span><span>支 ${dayTotal.toFixed(2)}</span></div>`;
+                dayRecords.forEach(record => {
+                    const cat = categoryMap[record.categoryId] || { icon: 'fa-circle', name: '未知' };
+                    html += `
+                    <div class="record-item" onclick="handleRecordClick(${record.id})" style="cursor:pointer;">
+                        <div class="cat-icon"><i class="fas ${cat.icon}"></i></div>
+                        <div class="record-info">
+                            <div>${cat.name}</div>
+                            <div style="font-size:12px;color:#999;">${record.remark || '无备注'}</div>
+                        </div>
+                        <div class="record-amount" style="color:${record.type === 'expense' ? '#333' : '#4CAF50'}">${formatAmount(record.amount, record.type)}</div>
+                    </div>`;
+                });
+            });
+            listEl.innerHTML = html;
+        } catch (e) { listEl.innerHTML = `<div style="text-align:center;padding:40px;color:#f00;">加载失败: ${e.message}</div>`; }
+    }
+
+    async function loadMonthlyStats() {
+        try {
+            const stats = await apiFetch(`/statistics/monthly-overview?year=${app.state.year}&month=${app.state.month}`, { auth: true });
+            if (stats) {
+                document.getElementById('total-expense').innerText = `¥ ${parseFloat(stats.totalExpense || 0).toFixed(2)}`;
+                document.getElementById('total-income').innerText = `¥ ${parseFloat(stats.totalIncome || 0).toFixed(2)}`;
+                const balance = parseFloat(stats.balance || 0);
+                document.getElementById('total-balance').innerText = `${balance >= 0 ? '+' : ''}${balance.toFixed(2)}`;
+
+                // 同时把数据同步到“我的账本”页面展示
+                const bookExpenseEl = document.getElementById('book-total-expense');
+                if (bookExpenseEl) bookExpenseEl.innerText = `¥ ${parseFloat(stats.totalExpense || 0).toFixed(2)}`;
+            }
+        } catch (e) { console.error('加载月度统计失败:', e); }
+    }
+
+    async function handleRecordClick(recordId) {
+        const action = confirm('选择操作：\n确定 = 删除记录\n取消 = 编辑记录') ? 'delete' : 'edit';
+        if (action === 'delete') {
+            if (!confirm('确定要删除这条记录吗？删除后可在回收站恢复。')) return;
+            try {
+                await apiFetch(`/records/${recordId}`, { method: 'DELETE', auth: true });
+                alert('删除成功');
+                loadRecords(); loadMonthlyStats();
+            } catch (e) { alert('删除失败: ' + e.message); }
+        } else { await editRecordById(recordId); }
+    }
+
+    function getLoginFormValues() {
+        const page = document.getElementById('page-login');
+        const inputs = page ? page.querySelectorAll('input.form-input') : [];
+        return { username: inputs[0]?.value?.trim() || '', password: inputs[1]?.value || '' };
+    }
+
+    function getRegisterFormValues() {
+        const page = document.getElementById('page-register');
+        const inputs = page ? page.querySelectorAll('input.form-input') : [];
+        return {
+            email: inputs[0]?.value?.trim() || '', username: inputs[1]?.value?.trim() || '',
+            password: inputs[2]?.value || '', confirm: inputs[3]?.value || '', nickname: inputs[1]?.value?.trim() || ''
+        };
+    }
+
+    const router = {
+        currentTab: null,
+        init: async function() {
+            app.init();
+            document.getElementById('nav-bar').style.display = 'none';
+            const token = authStore.getToken();
+            if (token) {
+                const user = authStore.getUser();
+                if (user) updateUserUI(user);
+                await loadCategoriesMap();
+                await this.switchTab('home');
+            } else { document.getElementById('page-login').style.display = 'flex'; }
+        },
+        switchTab: async function(pageId) {
+            document.querySelectorAll('.page, .page-fullscreen').forEach(p => p.style.display = 'none');
+            document.getElementById('page-' + pageId).style.display = 'block';
+            this.currentTab = pageId;
+            document.getElementById('nav-bar').style.display = 'flex';
+
+            document.querySelectorAll('.tab-item').forEach(item => item.classList.remove('active'));
+            if(pageId === 'home') document.querySelectorAll('.tab-item')[0]?.classList.add('active');
+            if(pageId === 'statistics') document.querySelectorAll('.tab-item')[1]?.classList.add('active');
+            if(pageId === 'discover') document.querySelectorAll('.tab-item')[2]?.classList.add('active');
+            if(pageId === 'user') document.querySelectorAll('.tab-item')[3]?.classList.add('active');
+
+            if(pageId === 'home') { await loadCategoriesMap(); await loadRecords(); await loadMonthlyStats(); }
+            if(pageId === 'statistics') { await loadStatistics(); }
+        },
+        openRecord: async function() {
+            document.getElementById('nav-bar').style.display = 'none';
+            document.getElementById('page-record').style.display = 'flex';
+            await recorder.loadCategories(); recorder.renderCategories(); recorder.clear();
+        },
+        push: async function(pageId) {
+            if (pageId === 'recycle-bin') {
+                document.getElementById('nav-bar').style.display = 'none';
+                document.getElementById('page-recycle-bin').style.display = 'flex';
+                loadRecycleBin();
+            } else if (pageId === 'book-detail') {
+                document.getElementById('nav-bar').style.display = 'none';
+                document.getElementById('page-book-detail').style.display = 'flex';
+                // 动态获取总笔数
+                try {
+                    const allRecords = await apiFetch('/records', { auth: true });
+                    document.getElementById('book-record-count').innerText = allRecords ? allRecords.length : 0;
+                } catch(e) {}
+            } else {
+                const target = document.getElementById('page-' + pageId);
+                if(target) { document.getElementById('nav-bar').style.display = 'none'; target.style.display = 'flex'; }
+            }
+        },
+        back: function() {
+            document.querySelectorAll('.page-fullscreen').forEach(p => { if(p.id !== 'page-login') p.style.display = 'none'; });
+            if (this.currentTab) {
+                document.getElementById('page-' + this.currentTab).style.display = 'block';
+                document.getElementById('nav-bar').style.display = 'flex';
+            } else { document.getElementById('page-login').style.display = 'flex'; }
+        }
+    };
+
+    const recorder = {
+        amountStr: '0.00', currentType: 'expense', currentCategoryId: null, categories: { expense: [], income: [] },
+        async init() { await this.loadCategories(); this.renderCategories(); },
+        async loadCategories() {
+            try {
+                this.categories.expense = await apiFetch('/categories?type=expense', { auth: true }) || [];
+                this.categories.income = await apiFetch('/categories?type=income', { auth: true }) || [];
+            } catch (e) { console.error('加载分类失败:', e); }
+        },
+        renderCategories() {
+            const grid = document.getElementById('category-grid');
+            if (!grid) return; grid.innerHTML = '';
+            const cats = this.categories[this.currentType] || [];
+            cats.forEach((cat, i) => {
+                const div = document.createElement('div');
+                div.className = `cat-item ${i === 0 ? 'selected' : ''}`; div.dataset.categoryId = cat.id;
+                div.innerHTML = `<div class="cat-circle"><i class="fas ${cat.icon}"></i></div><div class="cat-name">${cat.name}</div>`;
+                div.onclick = () => {
+                    document.querySelectorAll('.cat-item').forEach(e => e.classList.remove('selected'));
+                    div.classList.add('selected'); this.currentCategoryId = cat.id;
+                    document.getElementById('current-icon').className = `fas ${cat.icon}`; document.getElementById('current-cat-name').innerText = cat.name;
+                };
+                grid.appendChild(div);
+            });
+            if (cats.length > 0) this.currentCategoryId = cats[0].id;
+        },
+        switchType(t, b) {
+            this.currentType = t;
+            document.querySelectorAll('.type-btn').forEach(e => e.classList.remove('active'));
+            b.classList.add('active'); this.renderCategories();
+        },
+        input(k) {
+            if (this.amountStr === '0.00') this.amountStr = '';
+            if (k === '.' && this.amountStr.includes('.')) return;
+            this.amountStr += k; this.update();
+        },
+        del() { this.amountStr = this.amountStr.slice(0, -1) || '0.00'; this.update(); },
+        clear() { this.amountStr = '0.00'; this.update(); const r = document.getElementById('remark-input'); if(r) r.value = ''; },
+        update() { const d = document.getElementById('amount-display'); if(d) d.innerText = this.amountStr; },
+        async submit() {
+            if (this.amountStr === '0.00' || !this.currentCategoryId) return alert('请选择分类并输入金额');
+            try {
+                const remark = document.getElementById('remark-input')?.value.trim() || '';
+                const today = new Date();
+                const recordDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                await apiFetch('/records', {
+                    method: 'POST', auth: true,
+                    body: { categoryId: this.currentCategoryId, amount: parseFloat(this.amountStr), type: this.currentType, remark: remark, recordDate: recordDate }
+                });
+
+                alert('记账成功！'); router.back(); this.clear();
+
+                app.state.year = today.getFullYear();
+                app.state.month = today.getMonth() + 1;
+                app.updateHeaderUI();
+                loadRecords(); loadMonthlyStats();
+            } catch (e) { alert('记账失败: ' + (e.message || '请稍后再试')); }
+        }
+    };
+
+    function bindAuthHandlers() {
+        const loginBtn = document.querySelector('#page-login .btn-block');
+        if (loginBtn) {
+            loginBtn.onclick = async () => {
+                try {
+                    const { username, password } = getLoginFormValues();
+                    if (!username || !password) return alert('请输入账号和密码');
+                    const data = await apiFetch('/users/login', { method: 'POST', body: { username, password } });
+                    authStore.setToken(data.token); authStore.setUser(data.user); updateUserUI(data.user);
+                    await loadCategoriesMap(); await router.switchTab('home');
+                } catch (e) { alert(e.message || '登录失败'); }
+            };
+        }
+        const registerBtn = document.querySelector('#page-register .btn-block');
+        if (registerBtn) {
+            registerBtn.onclick = async () => {
+                try {
+                    const { email, username, password, confirm, nickname } = getRegisterFormValues();
+                    if (!email || !username || !password) return alert('请填写相关信息');
+                    if (password !== confirm) return alert('两次密码不一致');
+                    const data = await apiFetch('/users/register', { method: 'POST', body: { email, username, password, nickname } });
+                    authStore.setToken(data.token); authStore.setUser(data.user); updateUserUI(data.user);
+                    await loadCategoriesMap(); await router.switchTab('home'); alert('注册成功，已自动登录');
+                } catch (e) { alert(e.message || '注册失败'); }
+            };
+        }
+        const logoutBtn = document.querySelector('#page-user button.btn-block');
+        if (logoutBtn) {
+            logoutBtn.onclick = () => {
+                authStore.clear();
+                document.getElementById('nav-bar').style.display = 'none';
+                document.querySelectorAll('.page, .page-fullscreen').forEach(p => p.style.display = 'none');
+                document.getElementById('page-login').style.display = 'flex';
+            };
+        }
+    }
+
+    async function loadStatistics() {
+        const contentEl = document.getElementById('stats-content');
+        if (!contentEl) return;
+
+        try {
+            contentEl.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">加载中...</div>';
+
+            const year = app.state.year;
+            const month = app.state.month;
+
+            const [overview, trend, distribution, comparison] = await Promise.all([
+                apiFetch(`/statistics/monthly-overview?year=${year}&month=${month}`, { auth: true }),
+                apiFetch('/statistics/expense-trend?days=30', { auth: true }),
+                apiFetch(`/statistics/category-distribution?year=${year}&month=${month}`, { auth: true }),
+                apiFetch('/statistics/income-expense-comparison?months=6', { auth: true })
+            ]);
+
+            let html = `
+                <div style="background:white;border-radius:12px;padding:20px;margin-bottom:15px;">
+                    <div style="font-size:16px;font-weight:bold;margin-bottom:15px;">${year}年${month}月概览</div>
+                    <div style="display:flex;justify-content:space-around;">
+                        <div style="text-align:center;">
+                            <div style="color:#999;font-size:12px;">总收入</div>
+                            <div style="color:#4CAF50;font-size:20px;font-weight:bold;">¥${parseFloat(overview.totalIncome || 0).toFixed(2)}</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:#999;font-size:12px;">总支出</div>
+                            <div style="color:#f44336;font-size:20px;font-weight:bold;">¥${parseFloat(overview.totalExpense || 0).toFixed(2)}</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:#999;font-size:12px;">结余</div>
+                            <div style="color:#2196F3;font-size:20px;font-weight:bold;">¥${parseFloat(overview.balance || 0).toFixed(2)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:white;border-radius:12px;padding:20px;margin-bottom:15px;">
+                    <div style="font-size:16px;font-weight:bold;margin-bottom:15px;">分类占比</div>
+                    <div id="category-chart">`;
+
+            if (!distribution || distribution.length === 0) {
+                html += `<div style="text-align:center;color:#999;font-size:14px;">本月暂无支出记录</div>`;
+            } else {
+                distribution.slice(0, 5).forEach(item => {
+                    const pct = parseFloat(item.percentage || 0).toFixed(1);
+                    html += `
+                        <div style="margin-bottom:10px;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                                <span>${categoryMap[item.categoryId]?.name || '未知'}</span>
+                                <span style="font-weight:bold;">${pct}%</span>
+                            </div>
+                            <div style="background:#f0f0f0;height:8px;border-radius:4px;overflow:hidden;">
+                                <div style="background:var(--primary-color);height:100%;width:${pct}%;"></div>
+                            </div>
+                        </div>`;
+                });
+            }
+
+            html += `</div></div>
+                <div style="background:white;border-radius:12px;padding:20px;">
+                    <div style="font-size:16px;font-weight:bold;margin-bottom:15px;">近6月收支对比</div>
+                    <div id="comparison-chart">`;
+
+            (comparison || []).forEach(item => {
+                html += `
+                    <div style="margin-bottom:15px;padding:10px;background:#f9f9f9;border-radius:8px;">
+                        <div style="font-weight:bold;margin-bottom:8px;">${item.monthLabel}</div>
+                        <div style="display:flex;align-items:center;margin-bottom:5px;">
+                            <span style="width:50px;font-size:12px;color:#999;">收入</span>
+                            <div style="flex:1;background:#e0e0e0;height:20px;border-radius:10px;overflow:hidden;margin:0 10px;">
+                                <div style="background:#4CAF50;height:100%;width:${Math.min(100, (parseFloat(item.income || 0) / 10000) * 100)}%;"></div>
+                            </div>
+                            <span style="font-size:12px;">¥${parseFloat(item.income || 0).toFixed(0)}</span>
+                        </div>
+                        <div style="display:flex;align-items:center;">
+                            <span style="width:50px;font-size:12px;color:#999;">支出</span>
+                            <div style="flex:1;background:#e0e0e0;height:20px;border-radius:10px;overflow:hidden;margin:0 10px;">
+                                <div style="background:#f44336;height:100%;width:${Math.min(100, (parseFloat(item.expense || 0) / 10000) * 100)}%;"></div>
+                            </div>
+                            <span style="font-size:12px;">¥${parseFloat(item.expense || 0).toFixed(0)}</span>
+                        </div>
+                    </div>`;
+            });
+            html += `</div></div>`;
+            contentEl.innerHTML = html;
+        } catch (e) {
+            contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:#f00;">加载失败: ${e.message}</div>`;
+        }
+    }
+
+    // --- 🆕 消费分析：智能体检报告 ---
+    async function showExpenseAnalysis() {
+        const year = app.state.year;
+        const month = app.state.month;
+
+        try {
+            // 同时获取本月数据和分类数据
+            const [overview, distribution] = await Promise.all([
+                apiFetch(`/statistics/monthly-overview?year=${year}&month=${month}`, { auth: true }),
+                apiFetch(`/statistics/category-distribution?year=${year}&month=${month}`, { auth: true })
+            ]);
+
+            let report = `【${year}年${month}月 财务体检报告】\n\n`;
+            report += `📊 资金流动：\n本月收入：¥${overview.totalIncome}\n本月支出：¥${overview.totalExpense}\n当前结余：¥${overview.balance}\n\n`;
+
+            if (distribution && distribution.length > 0) {
+                const maxCat = distribution[0];
+                const catName = categoryMap[maxCat.categoryId]?.name || '未知';
+                report += `🔍 消费诊断：\n本月你把最多的钱花在了 [${catName}] 上，共计 ¥${maxCat.amount}，占总支出的 ${parseFloat(maxCat.percentage).toFixed(1)}%。\n\n`;
+            }
+
+            // 智能建议逻辑
+            report += `💡 智能建议：\n`;
+            const balance = parseFloat(overview.balance);
+            if (balance > 0) {
+                report += "财务状况非常健康！有结余是个好习惯，建议将结余转入储蓄账户。";
+            } else if (balance === 0 && parseFloat(overview.totalExpense) > 0) {
+                report += "本月收支平衡，成了月光族哦，下个月试着控制一下消费吧！";
+            } else {
+                report += "⚠️ 警告：本月已严重超支（入不敷出）！请立刻检查您的账单，削减非必要开销。";
+            }
+
+            alert(report);
+        } catch (e) {
+            alert('生成分析报告失败: ' + e.message);
+        }
+    }
+
+    // --- 🆕 账单导出功能：纯前端生成 CSV (Excel可打开) ---
+    async function exportData() {
+        if(!confirm('确定要将所有账单导出为 Excel (CSV) 格式吗？')) return;
+        try {
+            // 获取所有账单数据
+            const records = await apiFetch('/records', { auth: true });
+            if (!records || records.length === 0) return alert('当前没有可导出的账单');
+
+            // 构造 CSV 表头，并在开头加入 \uFEFF (UTF-8 BOM) 防止 Excel 打开中文乱码
+            let csvContent = "\uFEFF日期,类型,分类,金额,备注\n";
+
+            // 填充数据
+            records.forEach(r => {
+                const catName = categoryMap[r.categoryId]?.name || '未知';
+                const typeName = r.type === 'expense' ? '支出' : '收入';
+                // 处理备注中的逗号，防止 CSV 格式错乱
+                const remark = (r.remark || '').replace(/,/g, '，');
+                csvContent += `${r.recordDate},${typeName},${catName},${r.amount},${remark}\n`;
+            });
+
+            // 创建虚拟下载链接并触发下载
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `我的账单_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+        } catch (e) {
+            alert('导出失败: ' + e.message);
+        }
+    }
+
+    const tips = ['记账要持之以恒！', '设置预算上限控制支出。', '定期查看图表优化消费。', '给支出添加备注。', '记录收入准确计算结余。'];
+    function showRandomTip() { alert(tips[Math.floor(Math.random() * tips.length)]); }
+    async function showBudgetSuggestion() { alert("本月支出健康，继续保持！"); }
+    async function showAchievements() { alert("成就系统：您已坚持记账 1 天！"); }
+
+    async function loadRecycleBin() {
+        const contentEl = document.getElementById('recycle-bin-content');
+        if (!contentEl) return;
+
+        try {
+            contentEl.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">加载中...</div>';
+            const records = await apiFetch('/records/recycle-bin', { auth: true });
+
+            if (!records || records.length === 0) {
+                contentEl.innerHTML = `
+                <div style="text-align:center;padding:60px 20px;">
+                    <i class="fas fa-trash-alt" style="font-size: 50px; color: #E0E0E0; margin-bottom: 15px;"></i>
+                    <div style="color:#666; font-size:16px;">回收站空空如也</div>
+                </div>`;
+                return;
+            }
+
+            let html = '';
+            records.forEach(record => {
+                const cat = categoryMap[record.categoryId] || { icon: 'fa-circle', name: '未知' };
+                html += `
+                <div style="background:white;padding:15px;border-radius:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+                    <div style="display:flex;align-items:center;">
+                        <div style="width:40px;height:40px;background:#f5f5f5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:15px;">
+                            <i class="fas ${cat.icon}" style="color:#666;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight:bold;">${cat.name}</div>
+                            <div style="font-size:12px;color:#999;">${formatDate(record.recordDate)}</div>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-weight:bold;color:${record.type==='expense'?'#333':'#4CAF50'}">${formatAmount(record.amount, record.type)}</div>
+                        <div style="margin-top:5px;">
+                            <button onclick="restoreRecord(${record.id})" style="padding:4px 10px;background:#4CAF50;color:white;border:none;border-radius:4px;font-size:12px;margin-right:5px;cursor:pointer;">恢复</button>
+                            <button onclick="permanentlyDeleteRecord(${record.id})" style="padding:4px 10px;background:#f44336;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">彻底删除</button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            contentEl.innerHTML = html;
+        } catch (e) {
+            contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:#f00;">加载失败: ${e.message}</div>`;
+        }
+    }
+
+    async function restoreRecord(id) {
+        if (!confirm('确定要恢复这条记录吗？')) return;
+        try {
+            await apiFetch(`/records/${id}/restore`, { method: 'POST', auth: true });
+            alert('恢复成功！');
+            loadRecycleBin();
+            loadRecords();
+        } catch (e) { alert('恢复失败: ' + e.message); }
+    }
+
+    async function permanentlyDeleteRecord(id) {
+        if (!confirm('警告：彻底删除后将永远无法找回！确定要删除吗？')) return;
+        try {
+            await apiFetch(`/records/${id}/permanent`, { method: 'DELETE', auth: true });
+            alert('已彻底销毁该记录');
+            loadRecycleBin();
+        } catch (e) { alert('彻底删除失败: ' + e.message); }
+    }
+
+    async function editRecordById(id) {
+        alert("编辑功能接口已就绪！即将进入编辑页面...");
+        router.push('edit-record');
+    }
+
+    router.init(); recorder.init(); bindAuthHandlers();
+</script>
+</body>
+</html>
