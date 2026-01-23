@@ -1,0 +1,16 @@
+{
+  "name": "记账助手 Pro",
+  "short_name": "记账Pro",
+  "description": "你的全栈 AI 财务管家",
+  "start_url": "./index2.html",
+  "display": "standalone",
+  "background_color": "#F5F5F5",
+  "theme_color": "#FFDA44",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

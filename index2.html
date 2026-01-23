@@ -6,6 +6,7 @@
     <title>记账助手 Pro</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link rel="manifest" href="./manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         /* --- 全局样式 --- */
@@ -1406,6 +1407,16 @@
     }
 
     router.init(); recorder.init(); bindAuthHandlers();
+    // 注册 PWA 离线管家
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./service-worker.js')
+                .then(reg => console.log('PWA 管家启动成功!'))
+                .catch(err => console.log('PWA 启动失败:', err));
+        });
+    }
+
+
 </script>
 </body>
 </html>
