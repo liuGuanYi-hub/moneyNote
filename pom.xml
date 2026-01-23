@@ -76,6 +76,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <dependency><!-- ai大模型 -->
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+            <version>2.0.43</version>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

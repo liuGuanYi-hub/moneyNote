@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>记账助手 Pro</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         /* --- 全局样式 --- */
         :root {
@@ -24,12 +26,19 @@
             height: 100%; position: relative; display: flex; flex-direction: column;
         }
 
-        .page { flex: 1; overflow-y: auto; display: none; padding-bottom: 70px; background: var(--bg-color); }
+        /* ✨ 升级3：页面切换的“呼吸感”过渡动画 */
+        .page { flex: 1; overflow-y: auto; display: none; padding-bottom: 70px; background: var(--bg-color); animation: fadeIn 0.3s ease-in-out; }
         .page-fullscreen {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             max-width: 480px; margin: auto; z-index: 200;
             padding-bottom: 0; background: var(--bg-color);
             display: none; flex-direction: column;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* --- 底部导航 --- */
@@ -145,6 +154,37 @@
         .key:active { background: #f0f0f0; }
         .key-ok { background: var(--primary-color); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; grid-row: span 2; border-top: 1px solid var(--border-color); cursor: pointer; }
         .ops { display: grid; grid-template-rows: 1fr 1fr; }
+
+        /* ✨ 勋章卡片与进度条样式 */
+        .medal-card {
+            background: white; padding: 20px 15px; border-radius: 15px; text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05); filter: grayscale(1); opacity: 0.5;
+            transition: all 0.5s ease; border: 2px solid transparent; position: relative;
+        }
+        .medal-card.unlocked { filter: grayscale(0); opacity: 1; border-color: #FFDA44; transform: scale(1.02); }
+        .medal-icon-wrapper {
+            width: 50px; height: 50px; background: #f5f5f5; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 10px; font-size: 24px; color: #666;
+        }
+        .unlocked .medal-icon-wrapper { background: #FFF9E6; color: #FFDA44; }
+        .medal-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #333;}
+        .medal-desc { font-size: 10px; color: #999; line-height: 1.2; margin-bottom: 5px; }
+
+        /* 进度条样式 (仅未解锁时显示) */
+        .medal-progress-bg {
+            width: 100%; height: 6px; background: #eee; border-radius: 3px;
+            margin-top: 8px; overflow: hidden; display: none;
+        }
+        .medal-progress-bar {
+            height: 100%; background: #999; width: 0%; border-radius: 3px;
+            transition: width 1s ease-out;
+        }
+        .medal-progress-text {
+            font-size: 10px; color: #bbb; margin-top: 3px; display: none; font-weight: bold;
+        }
+        .medal-card:not(.unlocked) .medal-progress-bg,
+        .medal-card:not(.unlocked) .medal-progress-text { display: block; }
     </style>
 </head>
 <body>
@@ -181,6 +221,13 @@
 
     <div id="page-home" class="page">
         <div class="home-header">
+
+            <div style="text-align: right; margin-bottom: 10px;">
+                <button onclick="aiRecord()" style="background: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; color: #333; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s; font-size: 13px;">
+                    <i class="fas fa-robot" style="color: #2196F3; margin-right: 5px; font-size: 16px;"></i>AI 语音/文字快记
+                </button>
+            </div>
+
             <div class="overview-card" style="align-items: center; margin-bottom: 20px;">
                 <div class="month-select" onclick="app.showMonthPicker()">
                     <span id="current-month-text">加载中...</span>
@@ -275,6 +322,72 @@
                 <div class="menu-item" onclick="showAchievements()">
                     <span><i class="fas fa-trophy" style="color:#FF9800;margin-right:10px;"></i>成就系统</span>
                     <i class="fas fa-chevron-right" style="color:#ccc;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-medals" class="page-fullscreen" style="background: #F8F9FA;">
+        <div class="common-header">
+            <i class="fas fa-chevron-left back-btn" onclick="router.back()"></i>
+            <div class="header-title">成就勋章</div>
+            <div style="width: 25px;"></div>
+        </div>
+        <div style="padding: 20px; overflow-y: auto; height: calc(100vh - 60px);">
+            <div style="text-align: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.02);">
+                <div style="font-size: 14px; color: #999;">已点亮勋章</div>
+                <div style="font-size: 36px; font-weight: bold; color: #333;"><span id="medal-unlocked-count">0</span>/7</div>
+            </div>
+
+            <div id="medal-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding-bottom: 40px;">
+                <div class="medal-card" id="medal-first">
+                    <div class="medal-icon-wrapper"><i class="fas fa-seedling"></i></div>
+                    <div class="medal-name">初来乍到</div>
+                    <div class="medal-desc">记下第一笔账</div>
+                    <div class="medal-progress-bg"><div class="medal-progress-bar" id="first-bar"></div></div>
+                    <div class="medal-progress-text" id="first-text">0/1</div>
+                </div>
+                <div class="medal-card" id="medal-streak">
+                    <div class="medal-icon-wrapper"><i class="fas fa-fire"></i></div>
+                    <div class="medal-name">持之以恒</div>
+                    <div class="medal-desc">连续记账 7 天</div>
+                    <div class="medal-progress-bg"><div class="medal-progress-bar" id="streak-bar"></div></div>
+                    <div class="medal-progress-text" id="streak-text">0/7</div>
+                </div>
+                <div class="medal-card" id="medal-pro">
+                    <div class="medal-icon-wrapper"><i class="fas fa-gem"></i></div>
+                    <div class="medal-name">理财达人</div>
+                    <div class="medal-desc">连续记账 30 天</div>
+                    <div class="medal-progress-bg"><div class="medal-progress-bar" id="pro-bar"></div></div>
+                    <div class="medal-progress-text" id="pro-text">0/30</div>
+                </div>
+                <div class="medal-card" id="medal-rich">
+                    <div class="medal-icon-wrapper"><i class="fas fa-coins"></i></div>
+                    <div class="medal-name">土豪勋章</div>
+                    <div class="medal-desc">单笔支出 > 1000</div>
+                    <div class="medal-progress-bg"><div class="medal-progress-bar" id="rich-bar"></div></div>
+                    <div class="medal-progress-text" id="rich-text">0/1000</div>
+                </div>
+                <div class="medal-card" id="medal-early">
+                    <div class="medal-icon-wrapper"><i class="fas fa-dove"></i></div>
+                    <div class="medal-name">早起鸟</div>
+                    <div class="medal-desc">早晨 6 点前记账</div>
+                    <div class="medal-progress-bg"><div class="medal-progress-bar" id="early-bar"></div></div>
+                    <div class="medal-progress-text" id="early-text">0/1</div>
+                </div>
+                <div class="medal-card" id="medal-night">
+                    <div class="medal-icon-wrapper"><i class="fas fa-moon"></i></div>
+                    <div class="medal-name">深夜食堂</div>
+                    <div class="medal-desc">22点后记餐饮</div>
+                    <div class="medal-progress-bg"><div class="medal-progress-bar" id="night-bar"></div></div>
+                    <div class="medal-progress-text" id="night-text">0/1</div>
+                </div>
+                <div class="medal-card" id="medal-master">
+                    <div class="medal-icon-wrapper"><i class="fas fa-crown"></i></div>
+                    <div class="medal-name">精打细算</div>
+                    <div class="medal-desc">结余率 > 30%</div>
+                    <div class="medal-progress-bg"><div class="medal-progress-bar" id="master-bar"></div></div>
+                    <div class="medal-progress-text" id="master-text">0%/30%</div>
                 </div>
             </div>
         </div>
@@ -581,8 +694,10 @@
             if (stats) {
                 document.getElementById('total-expense').innerText = `¥ ${parseFloat(stats.totalExpense || 0).toFixed(2)}`;
                 document.getElementById('total-income').innerText = `¥ ${parseFloat(stats.totalIncome || 0).toFixed(2)}`;
+
+                // ✨ 升级2：启用金额数字滚动特效
                 const balance = parseFloat(stats.balance || 0);
-                document.getElementById('total-balance').innerText = `${balance >= 0 ? '+' : ''}${balance.toFixed(2)}`;
+                animateNumber('total-balance', balance);
 
                 // 同时把数据同步到“我的账本”页面展示
                 const bookExpenseEl = document.getElementById('book-total-expense');
@@ -729,12 +844,25 @@
                     body: { categoryId: this.currentCategoryId, amount: parseFloat(this.amountStr), type: this.currentType, remark: remark, recordDate: recordDate }
                 });
 
-                alert('记账成功！'); router.back(); this.clear();
+                // ✨ 升级1：记账成功的撒金币特效
+                confetti({
+                    particleCount: 50,
+                    spread: 60,
+                    origin: { y: 0.9 },
+                    shapes: ['circle'],
+                    colors: ['#FFDA44', '#FFA000']
+                });
 
-                app.state.year = today.getFullYear();
-                app.state.month = today.getMonth() + 1;
-                app.updateHeaderUI();
-                loadRecords(); loadMonthlyStats();
+                // 延迟 0.5 秒再回首页，给用户看烟花的时间
+                setTimeout(() => {
+                    router.back();
+                    this.clear();
+                    app.state.year = today.getFullYear();
+                    app.state.month = today.getMonth() + 1;
+                    app.updateHeaderUI();
+                    loadRecords(); loadMonthlyStats();
+                }, 500);
+
             } catch (e) { alert('记账失败: ' + (e.message || '请稍后再试')); }
         }
     };
@@ -776,25 +904,27 @@
         }
     }
 
+    // --- 📊 ✨ 升级3：引入 ECharts 的专业统计图表 ---
     async function loadStatistics() {
         const contentEl = document.getElementById('stats-content');
         if (!contentEl) return;
 
         try {
-            contentEl.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">加载中...</div>';
+            contentEl.innerHTML = '<div style="text-align:center;padding:20px;color:#999;"><i class="fas fa-spinner fa-spin"></i> 正在生成专业图表...</div>';
 
             const year = app.state.year;
             const month = app.state.month;
 
-            const [overview, trend, distribution, comparison] = await Promise.all([
+            // 1. 获取所有统计数据
+            const [overview, distribution, comparison] = await Promise.all([
                 apiFetch(`/statistics/monthly-overview?year=${year}&month=${month}`, { auth: true }),
-                apiFetch('/statistics/expense-trend?days=30', { auth: true }),
                 apiFetch(`/statistics/category-distribution?year=${year}&month=${month}`, { auth: true }),
                 apiFetch('/statistics/income-expense-comparison?months=6', { auth: true })
             ]);
 
+            // 2. 准备 HTML 骨架（这次只需要给图表留好坑位 `id="chart-pie"` 和 `id="chart-bar"`）
             let html = `
-                <div style="background:white;border-radius:12px;padding:20px;margin-bottom:15px;">
+                <div style="background:white;border-radius:12px;padding:20px;margin-bottom:15px;box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
                     <div style="font-size:16px;font-weight:bold;margin-bottom:15px;">${year}年${month}月概览</div>
                     <div style="display:flex;justify-content:space-around;">
                         <div style="text-align:center;">
@@ -812,119 +942,94 @@
                     </div>
                 </div>
 
-                <div style="background:white;border-radius:12px;padding:20px;margin-bottom:15px;">
-                    <div style="font-size:16px;font-weight:bold;margin-bottom:15px;">分类占比</div>
-                    <div id="category-chart">`;
+                <div style="background:white;border-radius:12px;padding:20px;margin-bottom:15px;box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+                    <div style="font-size:16px;font-weight:bold;margin-bottom:5px;">分类支出占比</div>
+                    <div id="chart-pie" style="width: 100%; height: 260px;"></div>
+                </div>
 
-            if (!distribution || distribution.length === 0) {
-                html += `<div style="text-align:center;color:#999;font-size:14px;">本月暂无支出记录</div>`;
-            } else {
-                distribution.slice(0, 5).forEach(item => {
-                    const pct = parseFloat(item.percentage || 0).toFixed(1);
-                    html += `
-                        <div style="margin-bottom:10px;">
-                            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-                                <span>${categoryMap[item.categoryId]?.name || '未知'}</span>
-                                <span style="font-weight:bold;">${pct}%</span>
-                            </div>
-                            <div style="background:#f0f0f0;height:8px;border-radius:4px;overflow:hidden;">
-                                <div style="background:var(--primary-color);height:100%;width:${pct}%;"></div>
-                            </div>
-                        </div>`;
-                });
-            }
-
-            html += `</div></div>
-                <div style="background:white;border-radius:12px;padding:20px;">
-                    <div style="font-size:16px;font-weight:bold;margin-bottom:15px;">近6月收支对比</div>
-                    <div id="comparison-chart">`;
-
-            (comparison || []).forEach(item => {
-                html += `
-                    <div style="margin-bottom:15px;padding:10px;background:#f9f9f9;border-radius:8px;">
-                        <div style="font-weight:bold;margin-bottom:8px;">${item.monthLabel}</div>
-                        <div style="display:flex;align-items:center;margin-bottom:5px;">
-                            <span style="width:50px;font-size:12px;color:#999;">收入</span>
-                            <div style="flex:1;background:#e0e0e0;height:20px;border-radius:10px;overflow:hidden;margin:0 10px;">
-                                <div style="background:#4CAF50;height:100%;width:${Math.min(100, (parseFloat(item.income || 0) / 10000) * 100)}%;"></div>
-                            </div>
-                            <span style="font-size:12px;">¥${parseFloat(item.income || 0).toFixed(0)}</span>
-                        </div>
-                        <div style="display:flex;align-items:center;">
-                            <span style="width:50px;font-size:12px;color:#999;">支出</span>
-                            <div style="flex:1;background:#e0e0e0;height:20px;border-radius:10px;overflow:hidden;margin:0 10px;">
-                                <div style="background:#f44336;height:100%;width:${Math.min(100, (parseFloat(item.expense || 0) / 10000) * 100)}%;"></div>
-                            </div>
-                            <span style="font-size:12px;">¥${parseFloat(item.expense || 0).toFixed(0)}</span>
-                        </div>
-                    </div>`;
-            });
-            html += `</div></div>`;
+                <div style="background:white;border-radius:12px;padding:20px;box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+                    <div style="font-size:16px;font-weight:bold;margin-bottom:5px;">近6月收支趋势</div>
+                    <div id="chart-bar" style="width: 100%; height: 280px;"></div>
+                </div>
+            `;
             contentEl.innerHTML = html;
+
+            // --- 🎨 3. 开始施展 ECharts 魔法 ---
+
+            // 【魔法一：炫酷环形饼图】
+            const pieChart = echarts.init(document.getElementById('chart-pie'));
+            const pieData = (distribution || []).map(item => ({
+                value: parseFloat(item.amount),
+                name: categoryMap[item.categoryId]?.name || '未知'
+            }));
+
+            pieChart.setOption({
+                tooltip: { trigger: 'item', formatter: '{b} : ¥{c} ({d}%)' },
+                legend: { bottom: '0%', left: 'center', itemWidth: 10, itemHeight: 10 },
+                color: ['#FFDA44', '#4CAF50', '#2196F3', '#FF9800', '#F44336', '#9C27B0'], // 更好看的配色
+                series: [{
+                    type: 'pie',
+                    radius: ['45%', '70%'], // 环形图效果
+                    avoidLabelOverlap: false,
+                    itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+                    label: { show: false, position: 'center' },
+                    emphasis: {
+                        label: { show: true, fontSize: '18', fontWeight: 'bold' } // 鼠标放上去中间显示大字
+                    },
+                    labelLine: { show: false },
+                    data: pieData.length > 0 ? pieData : [{value: 0, name: '暂无数据'}]
+                }]
+            });
+
+            // 【魔法二：平滑对比柱状图】
+            const barChart = echarts.init(document.getElementById('chart-bar'));
+            // 将数据倒序，让左边是最早的月，右边是最近的月
+            const months = (comparison || []).map(item => item.monthLabel).reverse();
+            const incomes = (comparison || []).map(item => parseFloat(item.income || 0)).reverse();
+            const expenses = (comparison || []).map(item => parseFloat(item.expense || 0)).reverse();
+
+            barChart.setOption({
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                legend: { data: ['收入', '支出'], bottom: 0 },
+                grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+                xAxis: { type: 'category', data: months, axisTick: { show: false } },
+                yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+                series: [
+                    {
+                        name: '收入', type: 'bar', data: incomes,
+                        itemStyle: { color: '#4CAF50', borderRadius: [5, 5, 0, 0] },
+                        barGap: '10%'
+                    },
+                    {
+                        name: '支出', type: 'bar', data: expenses,
+                        itemStyle: { color: '#F44336', borderRadius: [5, 5, 0, 0] }
+                    }
+                ]
+            });
+
+            // 监听窗口大小变化，让图表自适应手机屏幕旋转
+            window.addEventListener('resize', () => { pieChart.resize(); barChart.resize(); });
+
         } catch (e) {
-            contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:#f00;">加载失败: ${e.message}</div>`;
+            contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:#f00;">加载图表失败: ${e.message}</div>`;
         }
     }
 
-    // --- 🆕 消费分析：智能体检报告 ---
-    async function showExpenseAnalysis() {
-        const year = app.state.year;
-        const month = app.state.month;
-
-        try {
-            // 同时获取本月数据和分类数据
-            const [overview, distribution] = await Promise.all([
-                apiFetch(`/statistics/monthly-overview?year=${year}&month=${month}`, { auth: true }),
-                apiFetch(`/statistics/category-distribution?year=${year}&month=${month}`, { auth: true })
-            ]);
-
-            let report = `【${year}年${month}月 财务体检报告】\n\n`;
-            report += `📊 资金流动：\n本月收入：¥${overview.totalIncome}\n本月支出：¥${overview.totalExpense}\n当前结余：¥${overview.balance}\n\n`;
-
-            if (distribution && distribution.length > 0) {
-                const maxCat = distribution[0];
-                const catName = categoryMap[maxCat.categoryId]?.name || '未知';
-                report += `🔍 消费诊断：\n本月你把最多的钱花在了 [${catName}] 上，共计 ¥${maxCat.amount}，占总支出的 ${parseFloat(maxCat.percentage).toFixed(1)}%。\n\n`;
-            }
-
-            // 智能建议逻辑
-            report += `💡 智能建议：\n`;
-            const balance = parseFloat(overview.balance);
-            if (balance > 0) {
-                report += "财务状况非常健康！有结余是个好习惯，建议将结余转入储蓄账户。";
-            } else if (balance === 0 && parseFloat(overview.totalExpense) > 0) {
-                report += "本月收支平衡，成了月光族哦，下个月试着控制一下消费吧！";
-            } else {
-                report += "⚠️ 警告：本月已严重超支（入不敷出）！请立刻检查您的账单，削减非必要开销。";
-            }
-
-            alert(report);
-        } catch (e) {
-            alert('生成分析报告失败: ' + e.message);
-        }
-    }
-
-    // --- 🆕 账单导出功能：纯前端生成 CSV (Excel可打开) ---
     async function exportData() {
         if(!confirm('确定要将所有账单导出为 Excel (CSV) 格式吗？')) return;
         try {
-            // 获取所有账单数据
             const records = await apiFetch('/records', { auth: true });
             if (!records || records.length === 0) return alert('当前没有可导出的账单');
 
-            // 构造 CSV 表头，并在开头加入 \uFEFF (UTF-8 BOM) 防止 Excel 打开中文乱码
             let csvContent = "\uFEFF日期,类型,分类,金额,备注\n";
 
-            // 填充数据
             records.forEach(r => {
                 const catName = categoryMap[r.categoryId]?.name || '未知';
                 const typeName = r.type === 'expense' ? '支出' : '收入';
-                // 处理备注中的逗号，防止 CSV 格式错乱
                 const remark = (r.remark || '').replace(/,/g, '，');
                 csvContent += `${r.recordDate},${typeName},${catName},${r.amount},${remark}\n`;
             });
 
-            // 创建虚拟下载链接并触发下载
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
@@ -937,8 +1042,147 @@
 
     const tips = ['记账要持之以恒！', '设置预算上限控制支出。', '定期查看图表优化消费。', '给支出添加备注。', '记录收入准确计算结余。'];
     function showRandomTip() { alert(tips[Math.floor(Math.random() * tips.length)]); }
-    async function showBudgetSuggestion() { alert("本月支出健康，继续保持！"); }
-    async function showAchievements() { alert("成就系统：您已坚持记账 1 天！"); }
+
+    async function showBudgetSuggestion() {
+        const year = app.state.year;
+        const month = app.state.month;
+
+        let budget = localStorage.getItem('moneyNote_budget');
+        if (!budget) {
+            budget = prompt("💰 开启智能预算监控\n\n请输入你本月的预算金额（元）:", "3000");
+            if (!budget || isNaN(budget)) return;
+            localStorage.setItem('moneyNote_budget', budget);
+        }
+
+        try {
+            const overview = await apiFetch(`/statistics/monthly-overview?year=${year}&month=${month}`, { auth: true });
+            const totalExpense = parseFloat(overview.totalExpense || 0);
+            const totalBudget = parseFloat(budget);
+            const remain = totalBudget - totalExpense;
+            const percent = Math.min(100, (totalExpense / totalBudget) * 100).toFixed(1);
+
+            const today = new Date();
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+            const daysLeft = lastDay - today.getDate() + 1;
+
+            const dailyLimit = remain > 0 ? (remain / daysLeft).toFixed(2) : 0;
+
+            let tip = "🎉 完美！预算非常充裕，继续保持！";
+            if (percent > 80 && percent <= 100) tip = "⚠️ 警报！预算快见底了，接下来的日子请勒紧裤腰带。";
+            else if (percent > 100) tip = "😭 破产了！本月已超支，剁手要谨慎啊！";
+
+            const msg = `【${year}年${month}月 预算监控】\n\n` +
+                `目标预算：¥${totalBudget}\n` +
+                `已用支出：¥${totalExpense} (${percent}%)\n` +
+                `剩余预算：¥${remain.toFixed(2)}\n\n` +
+                `📅 本月还剩 ${daysLeft} 天\n` +
+                `💡 建议每日最多消费：¥${dailyLimit}\n\n` + tip;
+
+            if (confirm(msg + "\n\n(点击“确定”可重新设置预算)")) {
+                const newBudget = prompt("🔄 重新设置本月预算（元）:", budget);
+                if (newBudget && !isNaN(newBudget)) {
+                    localStorage.setItem('moneyNote_budget', newBudget);
+                    alert("预算已更新！");
+                }
+            }
+        } catch (e) { alert('获取数据失败: ' + e.message); }
+    }
+
+    // --- ✨ 🆕 终极版：成就系统计算与进度渲染 ---
+    async function showAchievements() {
+        // 1. 跳转页面并初始化状态
+        router.push('medals');
+        const cards = document.querySelectorAll('.medal-card');
+        cards.forEach(m => m.classList.remove('unlocked')); // 重置解锁状态
+
+        let unlockedCount = 0;
+
+        try {
+            // 2. 并行获取全局数据（全量账单和本月统计）
+            const [allRecords, stats] = await Promise.all([
+                apiFetch('/records', {auth:true}),
+                apiFetch(`/statistics/monthly-overview?year=${app.state.year}&month=${app.state.month}`, {auth:true})
+            ]);
+
+            // 封装：更新进度条工具函数
+            const updateProgress = (id, current, target, isPercentage = false) => {
+                const bar = document.getElementById(`${id}-bar`);
+                const text = document.getElementById(`${id}-text`);
+                const ratio = Math.min(current / target, 1);
+                bar.style.width = `${ratio * 100}%`;
+                text.innerText = isPercentage ? `${(current*100).toFixed(0)}%/${(target*100).toFixed(0)}%` : `${current}/${target}`;
+            };
+
+            // 封装：解锁勋章函数
+            const unlock = (id) => {
+                const el = document.getElementById(`medal-${id}`);
+                if (el) { el.classList.add('unlocked'); unlockedCount++; }
+            };
+
+            if(!allRecords) return;
+
+            // --- 🏅 成就 1：初来乍到 (目标 1 笔) ---
+            const totalCount = allRecords.length;
+            updateProgress('first', totalCount, 1);
+            if(totalCount >= 1) unlock('first');
+
+            // --- 🏅 成就 2 & 3：连续记账 (目标 7 天 / 30 天) ---
+            const dates = [...new Set(allRecords.map(r => r.recordDate))].sort();
+            let maxStreak = 0, currentStreak = 0;
+            dates.forEach((d, i) => {
+                if(i > 0 && (new Date(d) - new Date(dates[i-1])) / 86400000 === 1) currentStreak++;
+                else currentStreak = 1;
+                maxStreak = Math.max(maxStreak, currentStreak);
+            });
+
+            updateProgress('streak', maxStreak, 7);
+            if(maxStreak >= 7) unlock('streak');
+
+            updateProgress('pro', maxStreak, 30);
+            if(maxStreak >= 30) unlock('pro');
+
+            // --- 🏅 成就 4：土豪勋章 (单笔 >= 1000) ---
+            let maxExpense = 0;
+            allRecords.forEach(r => { if(r.type === 'expense') maxExpense = Math.max(maxExpense, parseFloat(r.amount)); });
+            updateProgress('rich', Math.floor(maxExpense), 1000);
+            if(maxExpense >= 1000) unlock('rich');
+
+            // --- 🏅 成就 5：早起鸟 (< 6am) ---
+            const earlyCount = allRecords.some(r => new Date(r.createdAt).getHours() < 6) ? 1 : 0;
+            updateProgress('early', earlyCount, 1);
+            if(earlyCount >= 1) unlock('early');
+
+            // --- 🏅 成就 6：深夜食堂 (>= 22pm 且为餐饮) ---
+            const nightCount = allRecords.some(r => {
+                const h = new Date(r.createdAt).getHours();
+                const cat = categoryMap[r.categoryId]?.name || "";
+                return h >= 22 && cat.match(/[餐饮食]/);
+            }) ? 1 : 0;
+            updateProgress('night', nightCount, 1);
+            if(nightCount >= 1) unlock('night');
+
+            // --- 🏅 成就 7：精打细算 (结余率 >= 30%) ---
+            const income = parseFloat(stats.totalIncome || 0);
+            const balance = parseFloat(stats.balance || 0);
+            const savingRate = income > 0 ? (balance / income) : 0;
+            updateProgress('master', savingRate, 0.3, true);
+            if(savingRate >= 0.3) unlock('master');
+
+            // 3. 更新总计数
+            document.getElementById('medal-unlocked-count').innerText = unlockedCount;
+
+            // 🎉 4. 彩蛋：如果有任何解锁的勋章，释放全屏撒花特效！
+            if (unlockedCount > 0) {
+                confetti({
+                    particleCount: 150,
+                    spread: 80,
+                    origin: { y: 0.6 },
+                    colors: ['#FFDA44', '#FFA000', '#4CAF50', '#2196F3']
+                });
+            }
+
+        } catch(e) { console.error('成就加载失败', e); }
+    }
 
     async function loadRecycleBin() {
         const contentEl = document.getElementById('recycle-bin-content');
@@ -1005,9 +1249,160 @@
         } catch (e) { alert('彻底删除失败: ' + e.message); }
     }
 
+    // --- ✨ 升级：完整的编辑账单功能 ---
     async function editRecordById(id) {
-        alert("编辑功能接口已就绪！即将进入编辑页面...");
         router.push('edit-record');
+        const contentEl = document.getElementById('edit-record-content');
+        contentEl.innerHTML = '<div style="text-align:center;padding:40px;color:#999;"><i class="fas fa-spinner fa-spin"></i> 正在加载数据...</div>';
+
+        try {
+            // 1. 获取所有账单并找到当前要编辑的这一条
+            const records = await apiFetch('/records', { auth: true });
+            const record = records.find(r => r.id === id);
+
+            if (!record) {
+                contentEl.innerHTML = '<div style="color:red; text-align:center;">找不到该记录，可能已被删除</div>';
+                return;
+            }
+
+            // 2. 准备分类选项 (区分收入和支出)
+            const isExpense = record.type === 'expense';
+            const categories = isExpense ? recorder.categories.expense : recorder.categories.income;
+            let catOptions = '';
+            categories.forEach(c => {
+                const selected = c.id === record.categoryId ? 'selected' : '';
+                catOptions += `<option value="${c.id}" ${selected}>${c.name}</option>`;
+            });
+
+            // 3. 渲染编辑表单
+            contentEl.innerHTML = `
+                <div style="background:white; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+                    <div class="form-group" style="margin-bottom:20px;">
+                        <label style="color:#999;font-size:12px;display:block;margin-bottom:5px;">账单类型</label>
+                        <input type="text" class="form-input" value="${isExpense ? '支出' : '收入'}" disabled style="color:#999;background:#f9f9f9;border-bottom:none;border-radius:8px;">
+                    </div>
+                    <div class="form-group" style="margin-bottom:20px;">
+                        <label style="color:#999;font-size:12px;display:block;margin-bottom:5px;">修改金额 (¥)</label>
+                        <input type="number" id="edit-amount" class="form-input" value="${record.amount}" step="0.01" style="font-size:24px; font-weight:bold; color:var(--text-main);">
+                    </div>
+                    <div class="form-group" style="margin-bottom:20px;">
+                        <label style="color:#999;font-size:12px;display:block;margin-bottom:5px;">修改分类</label>
+                        <select id="edit-category" class="form-input" style="width:100%; border:none; border-bottom:1px solid #ddd; outline:none; font-size:16px; background:transparent; padding:10px 0;">
+                            ${catOptions}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:20px;">
+                        <label style="color:#999;font-size:12px;display:block;margin-bottom:5px;">修改日期</label>
+                        <input type="date" id="edit-date" class="form-input" value="${record.recordDate}">
+                    </div>
+                    <div class="form-group" style="margin-bottom:30px;">
+                        <label style="color:#999;font-size:12px;display:block;margin-bottom:5px;">备注说明</label>
+                        <input type="text" id="edit-remark" class="form-input" value="${record.remark || ''}" placeholder="补充点什么...">
+                    </div>
+                    <button class="btn-block" onclick="saveEdit(${record.id}, '${record.type}')" style="box-shadow: 0 4px 10px rgba(255, 218, 68, 0.3);">保存修改</button>
+                </div>
+            `;
+        } catch (e) {
+            contentEl.innerHTML = `<div style="color:red; text-align:center;">加载失败: ${e.message}</div>`;
+        }
+    }
+
+    // --- 保存修改的提交逻辑 ---
+    async function saveEdit(id, type) {
+        const amount = document.getElementById('edit-amount').value;
+        const categoryId = document.getElementById('edit-category').value;
+        const recordDate = document.getElementById('edit-date').value;
+        const remark = document.getElementById('edit-remark').value;
+
+        if (!amount || !categoryId || !recordDate) return alert("请填写完整信息");
+
+        try {
+            // 调用后端的 PUT 接口更新数据
+            await apiFetch(`/records/${id}`, {
+                method: 'PUT',
+                auth: true,
+                body: {
+                    categoryId: parseInt(categoryId),
+                    amount: parseFloat(amount),
+                    type: type,
+                    remark: remark,
+                    recordDate: recordDate
+                }
+            });
+            alert('🎉 修改成功！');
+            router.back();
+            // 刷新主页数据
+            loadRecords();
+            loadMonthlyStats();
+        } catch (e) {
+            alert('修改失败: ' + e.message);
+        }
+    }
+
+    // ✨ 升级2：辅助函数，用于数字滚动动画
+    function animateNumber(elementId, targetValue, duration = 1000) {
+        const obj = document.getElementById(elementId);
+        if (!obj) return;
+        const start = 0;
+        const end = parseFloat(targetValue);
+        const range = end - start;
+        let startTime = null;
+
+        function step(timestamp) {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            // easeOut 缓动算法，先快后慢
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            obj.innerText = (start + range * easeOut).toFixed(2);
+            if (progress < 1) window.requestAnimationFrame(step);
+        }
+        window.requestAnimationFrame(step);
+    }
+
+    // --- 🤖 核心黑科技：AI 智能记账 ---
+    async function aiRecord() {
+        // 1. 弹出输入框，接收用户的自然语言
+        const text = prompt("🤖 AI 记账助手已就绪\n\n请输入你的消费（支持口语化）：\n例如：今天打车去公司花了 35 元", "昨天买了两杯瑞幸咖啡，一共 38 块");
+        if (!text) return;
+
+        try {
+            // 提示用户正在思考
+            const loadingMsg = document.createElement('div');
+            loadingMsg.innerHTML = '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;"><i class="fas fa-spinner fa-spin"></i> AI 正在思考中...</div>';
+            document.body.appendChild(loadingMsg);
+
+            // 2. 发送给后端 AiController 进行语义分析
+            const aiData = await apiFetch('/ai/parse', { method: 'POST', body: { text: text }, auth: true });
+            document.body.removeChild(loadingMsg);
+
+            // 3. 拦截 AI 的分析结果，让用户确认
+            const confirmText = `💡 AI 识别结果：\n\n💰 金额：¥${aiData.amount}\n📂 分类：${aiData.category}\n📝 备注：${aiData.remark}\n\n✅ 准确无误，立即入账？`;
+
+            if (confirm(confirmText)) {
+                // 智能匹配本地分类 ID (找不到就默认用第一个分类)
+                const targetCat = Object.values(categoryMap).find(c => c.name.includes(aiData.category) || aiData.category.includes(c.name)) || Object.values(categoryMap)[0];
+
+                const record = {
+                    categoryId: targetCat.id,
+                    amount: parseFloat(aiData.amount),
+                    type: aiData.type || 'expense',
+                    remark: aiData.remark + " 🤖", // 加上机器人小尾巴
+                    recordDate: new Date().toISOString().split('T')[0]
+                };
+
+                // 4. 调用常规记账接口存入 MySQL
+                await apiFetch('/records', { method: 'POST', body: record, auth: true });
+
+                // 🎉 5. 触发撒花特效，重新加载数据
+                confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+                alert("✨ 太聪明了！AI 已帮你自动记账！");
+                loadRecords();
+                loadMonthlyStats();
+            }
+        } catch (e) {
+            alert("AI 大脑开小差了: " + e.message);
+            document.body.lastChild.remove(); // 移除 loading
+        }
     }
 
     router.init(); recorder.init(); bindAuthHandlers();
