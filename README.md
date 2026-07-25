@@ -57,7 +57,7 @@ cd moneyNote
 
 ## 动态系统架构图
 
-![moneyNote 动态系统架构图](docs/architecture/dynamic-archify-architecture.svg)
+![moneyNote 动态系统架构图](docs/architecture/dynamic-archify-architecture.gif)
 
 - [打开交互式动态架构图](docs/architecture/dynamic-archify-architecture.html)
 - [查看架构源数据](docs/architecture/dynamic-archify-architecture.json)
