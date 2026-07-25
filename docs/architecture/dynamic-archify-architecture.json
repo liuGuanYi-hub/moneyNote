@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "moneyNote",
+    "subtitle": "Full-stack personal finance workspace",
+    "output": "dynamic-archify-architecture.html"
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "User",
+      "sublabel": "Browser",
+      "pos": [
+        20,
+        250
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "frontend",
+      "type": "frontend",
+      "label": "Web Frontend",
+      "sublabel": "Records + charts",
+      "pos": [
+        240,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Spring Boot",
+      "sublabel": "REST + services",
+      "pos": [
+        480,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Security",
+      "sublabel": "Login + access",
+      "pos": [
+        700,
+        100
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Finance DB",
+      "sublabel": "Records + budgets",
+      "pos": [
+        700,
+        350
+      ],
+      "size": [
+        160,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "moneyNote service",
+      "wraps": [
+        "frontend",
+        "api",
+        "auth",
+        "db"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "user",
+      "to": "frontend",
+      "label": "manage",
+      "variant": "emphasis"
+    },
+    {
+      "from": "frontend",
+      "to": "api",
+      "label": "REST",
+      "variant": "emphasis"
+    },
+    {
+      "from": "api",
+      "to": "auth",
+      "label": "authorize",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "route": "orthogonal-v",
+      "variant": "security"
+    },
+    {
+      "from": "api",
+      "to": "db",
+      "label": "CRUD"
+    }
+  ],
+  "cards": []
+}
