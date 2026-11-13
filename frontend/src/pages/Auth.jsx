@@ -1,22 +1,25 @@
 import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../services/api';
-import { authService } from '../services/auth';
+import { useAuthStore } from '../stores/authStore';
+import { toast } from '../stores/toastStore';
 
-const Login = ({ onLogin, onNavigateToRegister }) => {
+const Login = ({ onLogin }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const login = useAuthStore(s => s.login);
+    const navigate = useNavigate();
 
     const handleLogin = async () => {
-        if (!username || !password) return alert('请输入账号和密码');
+        if (!username || !password) return toast.error('请输入账号和密码');
         setLoading(true);
         try {
             const data = await apiFetch('/users/login', { method: 'POST', body: { username, password } });
-            authService.setToken(data.token);
-            authService.setUser(data.user);
+            login(data.user, data.token);
             onLogin(data.user);
         } catch (e) {
-            alert(e.message || '登录失败');
+            toast.error(e.message || '登录失败');
         } finally {
             setLoading(false);
         }
@@ -50,13 +53,13 @@ const Login = ({ onLogin, onNavigateToRegister }) => {
                 <button className="btn-block" onClick={handleLogin} disabled={loading}>
                     {loading ? '登 录 中...' : '登 录'}
                 </button>
-                <div className="link-text" onClick={onNavigateToRegister}>没有账号？点击注册</div>
+                <Link to="/register" className="link-text" style={{ textDecoration: 'none' }}>没有账号？点击注册</Link>
             </div>
         </div>
     );
 };
 
-const Register = ({ onBack, onRegisterSuccess }) => {
+const Register = ({ onRegisterSuccess }) => {
     const [formData, setFormData] = useState({
         email: '',
         username: '',
@@ -65,6 +68,8 @@ const Register = ({ onBack, onRegisterSuccess }) => {
         nickname: ''
     });
     const [loading, setLoading] = useState(false);
+    const login = useAuthStore(s => s.login);
+    const navigate = useNavigate();
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -73,8 +78,8 @@ const Register = ({ onBack, onRegisterSuccess }) => {
 
     const handleRegister = async () => {
         const { email, username, password, confirm, nickname } = formData;
-        if (!email || !username || !password) return alert('请填写相关信息');
-        if (password !== confirm) return alert('两次密码不一致');
+        if (!email || !username || !password) return toast.error('请填写相关信息');
+        if (password !== confirm) return toast.error('两次密码不一致');
 
         setLoading(true);
         try {
@@ -82,12 +87,11 @@ const Register = ({ onBack, onRegisterSuccess }) => {
                 method: 'POST',
                 body: { email, username, password, nickname: nickname || username }
             });
-            authService.setToken(data.token);
-            authService.setUser(data.user);
-            alert('注册成功，已自动登录');
+            login(data.user, data.token);
+            toast.success('注册成功，已自动登录');
             onRegisterSuccess(data.user);
         } catch (e) {
-            alert(e.message || '注册失败');
+            toast.error(e.message || '注册失败');
         } finally {
             setLoading(false);
         }
@@ -96,7 +100,7 @@ const Register = ({ onBack, onRegisterSuccess }) => {
     return (
         <div id="page-register" className="page-fullscreen" style={{ display: 'flex' }}>
             <div className="common-header">
-                <i className="fas fa-chevron-left back-btn" onClick={onBack}></i>
+                <i className="fas fa-chevron-left back-btn" onClick={() => navigate('/login')}></i>
                 <div className="header-title">新用户注册</div>
                 <div style={{ width: '25px' }}></div>
             </div>

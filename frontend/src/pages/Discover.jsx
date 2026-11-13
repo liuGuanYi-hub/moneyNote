@@ -1,14 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { apiFetch } from '../services/api';
+import { useCategoryStore } from '../stores/categoryStore';
+import { useAppStore } from '../stores/appStore';
+import { toast } from '../stores/toastStore';
 
-const Discover = ({ categories, currentDate }) => {
+const Discover = () => {
+    const categories = useCategoryStore(s => ({ expense: s.expense, income: s.income }));
+    const currentDate = useAppStore(s => s.currentDate);
     const [showAchievements, setShowAchievements] = useState(false);
     const [medalsData, setMedalsData] = useState({ unlockedCount: 0, medals: [] });
     const [loadingAchievements, setLoadingAchievements] = useState(false);
 
     const tips = ['记账要持之以恒！', '设置预算上限控制支出。', '定期查看图表优化消费。', '给支出添加备注。', '记录收入准确计算结余。'];
-    const showRandomTip = () => alert(tips[Math.floor(Math.random() * tips.length)]);
+    const showRandomTip = () => toast.info(tips[Math.floor(Math.random() * tips.length)]);
 
     const handleBudgetSuggestion = async () => {
         const year = currentDate.getFullYear();
@@ -49,10 +54,10 @@ const Discover = ({ categories, currentDate }) => {
                 const newBudget = prompt("🔄 重新设置本月预算（元）:", budget);
                 if (newBudget && !isNaN(newBudget)) {
                     localStorage.setItem('moneyNote_budget', newBudget);
-                    alert("预算已更新！");
+                    toast.success("预算已更新！");
                 }
             }
-        } catch (e) { alert('获取数据失败: ' + e.message); }
+        } catch (e) { toast.error('获取数据失败: ' + e.message); }
     };
 
     const loadAchievements = async () => {
@@ -69,15 +74,12 @@ const Discover = ({ categories, currentDate }) => {
             const categoryMap = {};
             [...categories.expense, ...categories.income].forEach(cat => { categoryMap[cat.id] = cat; });
 
-            // Calculations
             let unlockedCount = 0;
             const medals = [];
 
-            // 1. First record
             const count = allRecords.length;
             medals.push({ id: 'first', name: '初来乍到', desc: '记下第一笔账', current: count, target: 1, icon: 'fa-seedling' });
 
-            // 2. Streaks
             const dates = [...new Set(allRecords.map(r => r.recordDate))].sort();
             let maxStreak = 0, currentStr = 0;
             dates.forEach((d, i) => {
@@ -88,16 +90,13 @@ const Discover = ({ categories, currentDate }) => {
             medals.push({ id: 'streak', name: '持之以恒', desc: '连续记账 7 天', current: maxStreak, target: 7, icon: 'fa-fire' });
             medals.push({ id: 'pro', name: '理财达人', desc: '连续记账 30 天', current: maxStreak, target: 30, icon: 'fa-gem' });
 
-            // 3. Single large expense
             let maxExp = 0;
             allRecords.forEach(r => { if (r.type === 'expense') maxExp = Math.max(maxExp, parseFloat(r.amount)); });
             medals.push({ id: 'rich', name: '土豪勋章', desc: '单笔支出 > 1000', current: Math.floor(maxExp), target: 1000, icon: 'fa-coins' });
 
-            // 4. Early bird
             const early = allRecords.some(r => new Date(r.createdAt).getHours() < 6) ? 1 : 0;
             medals.push({ id: 'early', name: '早起鸟', desc: '早晨 6 点前记账', current: early, target: 1, icon: 'fa-dove' });
 
-            // 5. Late night dining
             const night = allRecords.some(r => {
                 const h = new Date(r.createdAt).getHours();
                 const cat = categoryMap[r.categoryId]?.name || "";
@@ -105,7 +104,6 @@ const Discover = ({ categories, currentDate }) => {
             }) ? 1 : 0;
             medals.push({ id: 'night', name: '深夜食堂', desc: '22点后记餐饮', current: night, target: 1, icon: 'fa-moon' });
 
-            // 6. Savings rate
             const income = parseFloat(stats.totalIncome || 0);
             const balance = parseFloat(stats.balance || 0);
             const rate = income > 0 ? (balance / income) : 0;
@@ -126,16 +124,16 @@ const Discover = ({ categories, currentDate }) => {
 
     if (showAchievements) {
         return (
-            <div id="page-medals" className="page-fullscreen" style={{ background: '#F8F9FA', display: 'flex' }}>
+            <div id="page-medals" className="page-fullscreen" style={{ background: 'var(--bg-color)', display: 'flex' }}>
                 <div className="common-header">
                     <i className="fas fa-chevron-left back-btn" onClick={() => setShowAchievements(false)}></i>
                     <div className="header-title">成就勋章</div>
                     <div style={{ width: '25px' }}></div>
                 </div>
                 <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-                    <div style={{ textAlign: 'center', marginBottom: '25px', background: 'var(--white)', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
-                        <div style={{ fontSize: '14px', color: '#999' }}>已点亮勋章</div>
-                        <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#333' }}>{medalsData.unlockedCount}/{medalsData.medals.length}</div>
+                    <div style={{ background: 'var(--card-bg)', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 10px var(--shadow-color)' }}>
+                        <div style={{ fontSize: '14px', color: 'var(--text-sub)' }}>已点亮勋章</div>
+                        <div style={{ fontSize: '36px', fontWeight: 'bold', color: 'var(--text-main)' }}>{medalsData.unlockedCount}/{medalsData.medals.length}</div>
                     </div>
 
                     <div id="medal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', paddingBottom: '40px' }}>

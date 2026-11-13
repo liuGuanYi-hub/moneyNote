@@ -47,6 +47,14 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
     @Query("SELECT SUM(r.amount) FROM Record r WHERE r.userId = :userId AND r.type = :type " +
            "AND YEAR(r.recordDate) = :year AND MONTH(r.recordDate) = :month " +
            "AND (r.deleted IS NULL OR r.deleted = false)")
-    java.math.BigDecimal getTotalByMonth(@Param("userId") Long userId, @Param("type") String type, 
+    java.math.BigDecimal getTotalByMonth(@Param("userId") Long userId, @Param("type") String type,
                                          @Param("year") int year, @Param("month") int month);
+
+    @Query("SELECT SUM(r.amount) FROM Record r WHERE r.userId = :userId AND r.type = :type " +
+           "AND r.categoryId = :categoryId " +
+           "AND YEAR(r.recordDate) = :year AND MONTH(r.recordDate) = :month " +
+           "AND (r.deleted IS NULL OR r.deleted = false)")
+    java.math.BigDecimal getTotalByCategoryAndMonth(@Param("userId") Long userId, @Param("type") String type,
+                                                     @Param("categoryId") Long categoryId,
+                                                     @Param("year") int year, @Param("month") int month);
 }

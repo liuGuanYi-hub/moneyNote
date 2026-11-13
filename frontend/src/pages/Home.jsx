@@ -1,11 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../services/api';
 import { formatDate, formatAmount } from '../utils/format';
+import { useCategoryStore } from '../stores/categoryStore';
+import { useAppStore } from '../stores/appStore';
+import { toast } from '../stores/toastStore';
+import { SkeletonRecordRow } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import confetti from 'canvas-confetti';
 
-const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordClick, onRecordDeleted }) => {
+const Home = () => {
+    const categories = useCategoryStore(s => ({ expense: s.expense, income: s.income }));
+    const refreshSignal = useAppStore(s => s.refreshSignal);
+    const currentDate = useAppStore(s => s.currentDate);
+    const setCurrentDate = useAppStore(s => s.setCurrentDate);
+    const triggerRefresh = useAppStore(s => s.triggerRefresh);
+    const navigate = useNavigate();
+
     const [stats, setStats] = useState({ totalExpense: 0, totalIncome: 0, balance: 0 });
     const [records, setRecords] = useState([]);
+    const [budgetProgress, setBudgetProgress] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showMonthPicker, setShowMonthPicker] = useState(false);
     const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
@@ -33,13 +47,16 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
             const startDate = `${year}-${monthStr}-01`;
             const endDate = `${year}-${monthStr}-${lastDay}`;
 
-            const [rawRecords, monthlyStats] = await Promise.all([
+            const monthLabel = `${year}-${monthStr}`;
+            const [rawRecords, monthlyStats, budgetData] = await Promise.all([
                 apiFetch(`/records?startDate=${startDate}&endDate=${endDate}`, { auth: true }),
-                apiFetch(`/statistics/monthly-overview?year=${year}&month=${month}`, { auth: true })
+                apiFetch(`/statistics/monthly-overview?year=${year}&month=${month}`, { auth: true }),
+                apiFetch(`/budgets/progress?month=${monthLabel}`, { auth: true })
             ]);
 
             setRecords(rawRecords || []);
             setStats(monthlyStats || { totalExpense: 0, totalIncome: 0, balance: 0 });
+            setBudgetProgress(budgetData || []);
         } catch (e) {
             console.error('Failed to load home data', e);
         } finally {
@@ -53,11 +70,12 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
             if (!confirm('确定要删除这条记录吗？删除后可在回收站恢复。')) return;
             try {
                 await apiFetch(`/records/${record.id}`, { method: 'DELETE', auth: true });
-                alert('删除成功');
-                if (onRecordDeleted) onRecordDeleted();
-            } catch (e) { alert('删除失败: ' + e.message); }
+                toast.success('已删除，可在回收站恢复');
+                triggerRefresh();
+            } catch (e) { toast.error('删除失败: ' + e.message); }
         } else {
-            if (onRecordClick) onRecordClick(record);
+            useAppStore.getState().setEditingRecord(record);
+            navigate('/edit-record/' + record.id);
         }
     };
 
@@ -66,7 +84,6 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
         if (!text) return;
 
         try {
-            // Simple visual loading overlay
             const loadingOverlay = document.createElement('div');
             loadingOverlay.innerHTML = '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;"><i class="fas fa-spinner fa-spin"></i> AI 正在思考中...</div>';
             document.body.appendChild(loadingOverlay);
@@ -89,11 +106,10 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
 
                 await apiFetch('/records', { method: 'POST', body: record, auth: true });
                 confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
-                alert("✨ 太聪明了！AI 已帮你自动记账！");
-                if (onRecordDeleted) onRecordDeleted(); // reuse trigger
+                triggerRefresh();
             }
         } catch (e) {
-            alert("AI 大脑开小差了: " + e.message);
+            toast.error("AI 大脑开小差了: " + e.message);
             const overlay = document.querySelector('div[style*="z-index: 9999"]');
             if (overlay) overlay.remove();
         }
@@ -110,7 +126,7 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
     }, [records]);
 
     const handleSelectMonth = (m) => {
-        onDateChange(new Date(pickerYear, m - 1, 1));
+        setCurrentDate(new Date(pickerYear, m - 1, 1));
         setShowMonthPicker(false);
     };
 
@@ -120,7 +136,7 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
                 <div style={{ textAlign: 'right', marginBottom: '10px' }}>
                     <button
                         onClick={aiRecord}
-                        style={{ background: 'var(--white)', border: 'none', padding: '8px 15px', borderRadius: '20px', fontWeight: 'bold', color: '#333', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'all 0.2s', fontSize: '13px' }}
+                        style={{ background: 'var(--white)', border: 'none', padding: '8px 15px', borderRadius: '20px', fontWeight: 'bold', color: 'var(--text-main)', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'all 0.2s', fontSize: '13px' }}
                     >
                         <i className="fas fa-robot" style={{ color: '#2196F3', marginRight: '5px', fontSize: '16px' }}></i>AI 语音/文字快记
                     </button>
@@ -131,28 +147,71 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
                         <span>{year}年{month}月</span>
                         <i className="fas fa-caret-down" style={{ fontSize: '16px', marginLeft: '8px' }}></i>
                     </div>
-                    <div style={{ fontSize: '14px', color: '#333' }}>本月结余 <b style={{ fontSize: '18px' }}>{parseFloat(stats.balance || 0).toFixed(2)}</b></div>
+                    <div style={{ fontSize: '14px', color: 'var(--text-main)' }}>本月结余 <b style={{ fontSize: '18px' }}>{parseFloat(stats.balance || 0).toFixed(2)}</b></div>
                 </div>
                 <div className="overview-card">
                     <div style={{ background: 'rgba(255,255,255,0.3)', padding: '10px', borderRadius: '8px', flex: 1, marginRight: '10px' }}>
-                        <div style={{ fontSize: '12px' }}>本月支出</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-main)' }}>本月支出</div>
                         <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '5px' }}>¥ {parseFloat(stats.totalExpense || 0).toFixed(2)}</div>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.3)', padding: '10px', borderRadius: '8px', flex: 1 }}>
-                        <div style={{ fontSize: '12px' }}>本月收入</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-main)' }}>本月收入</div>
                         <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '5px' }}>¥ {parseFloat(stats.totalIncome || 0).toFixed(2)}</div>
                     </div>
                 </div>
             </div>
 
+            {/* Budget progress dashboard */}
+            {budgetProgress.length > 0 && (
+              <div className="budget-section">
+                <div className="budget-header">
+                  <span className="title">📊 本月预算</span>
+                  <span className="action" onClick={() => navigate('/budgets')}>管理预算 <i className="fas fa-chevron-right" style={{ fontSize: 10 }}></i></span>
+                </div>
+                {(() => {
+                  const totalBudget = budgetProgress.reduce((s, b) => s + parseFloat(b.budgetAmount || 0), 0);
+                  const totalSpent = budgetProgress.reduce((s, b) => s + parseFloat(b.spent || 0), 0);
+                  const pct = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0;
+                  const isOver = totalSpent > totalBudget;
+                  return (
+                    <>
+                      <div className="budget-progress-bg">
+                        <div className={`budget-progress-bar ${isOver ? 'over-budget' : ''}`} style={{ width: `${pct}%` }}></div>
+                      </div>
+                      <div className="budget-progress-text">
+                        <span>{isOver ? `超支 ¥${(totalSpent - totalBudget).toFixed(0)}` : `剩余 ¥${(totalBudget - totalSpent).toFixed(0)}`}</span>
+                        <span>{pct.toFixed(0)}%</span>
+                      </div>
+                    </>
+                  );
+                })()}
+                {/* Top overspent categories */}
+                {budgetProgress.filter(b => b.percentage > 80).slice(0, 3).map(b => {
+                  const cat = categories.expense.find(c => c.id === b.categoryId);
+                  return (
+                    <div key={b.categoryId} style={{ display: 'flex', alignItems: 'center', marginTop: 10, fontSize: 13 }}>
+                      <i className={`fas ${cat?.icon || 'fa-circle'}`} style={{ color: b.percentage > 100 ? 'var(--danger-color)' : 'var(--warning-color)', marginRight: 8, width: 16 }}></i>
+                      <span style={{ flex: 1, color: 'var(--text-main)' }}>{cat?.name || '未知'}</span>
+                      <span style={{ color: b.percentage > 100 ? 'var(--danger-color)' : 'var(--text-sub)', fontWeight: 500 }}>
+                        {b.percentage.toFixed(0)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="record-list">
                 {loading && records.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#999', fontSize: '14px' }}><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>正在拉取...</div>
-                ) : groupedRecords.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                        <i className="fas fa-box-open" style={{ fontSize: '50px', color: '#E0E0E0', marginBottom: '15px' }}></i>
-                        <div style={{ color: '#666', fontSize: '16px', fontWeight: 'bold' }}>{year}年{month}月 暂无记账记录</div>
+                    <div style={{ padding: '0 15px' }}>
+                        {[...Array(5)].map((_, i) => <SkeletonRecordRow key={i} />)}
                     </div>
+                ) : groupedRecords.length === 0 ? (
+                    <EmptyState
+                        icon="fa-box-open"
+                        title={`${year}年${month}月 暂无记账记录`}
+                        description="点击下方 + 号记下第一笔吧"
+                    />
                 ) : (
                     groupedRecords.map(([date, dayRecords]) => {
                         const dayTotal = dayRecords.reduce((sum, r) => sum + (r.type === 'expense' ? parseFloat(r.amount) : 0), 0);
@@ -169,9 +228,9 @@ const Home = ({ categories, refreshSignal, currentDate, onDateChange, onRecordCl
                                             <div className="cat-icon"><i className={`fas ${cat.icon}`}></i></div>
                                             <div className="record-info">
                                                 <div>{cat.name}</div>
-                                                <div style={{ fontSize: '12px', color: '#999' }}>{record.remark || '无备注'}</div>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-sub)' }}>{record.remark || '无备注'}</div>
                                             </div>
-                                            <div className="record-amount" style={{ color: record.type === 'expense' ? '#333' : '#4CAF50' }}>{formatAmount(record.amount, record.type)}</div>
+                                            <div className="record-amount" style={{ color: record.type === 'expense' ? 'var(--text-main)' : 'var(--success-color)' }}>{formatAmount(record.amount, record.type)}</div>
                                         </div>
                                     );
                                 })}

@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts';
 import { apiFetch } from '../services/api';
+import { useCategoryStore } from '../stores/categoryStore';
+import { useAppStore } from '../stores/appStore';
+import { SkeletonStatCard, SkeletonChart } from '../components/Skeleton';
 
-const Statistics = ({ categories, currentDate }) => {
+const Statistics = () => {
+    const categories = useCategoryStore(s => ({ expense: s.expense, income: s.income }));
+    const currentDate = useAppStore(s => s.currentDate);
     const [overview, setOverview] = useState({ totalIncome: 0, totalExpense: 0, balance: 0 });
     const [loading, setLoading] = useState(false);
     const pieRef = useRef(null);
@@ -48,7 +54,6 @@ const Statistics = ({ categories, currentDate }) => {
     };
 
     const renderCharts = (distribution, comparison) => {
-        // Pie Chart
         if (!pieChart.current && pieRef.current) {
             pieChart.current = echarts.init(pieRef.current);
         }
@@ -76,7 +81,6 @@ const Statistics = ({ categories, currentDate }) => {
             }]
         });
 
-        // Bar Chart
         if (!barChart.current && barRef.current) {
             barChart.current = echarts.init(barRef.current);
         }
@@ -112,34 +116,42 @@ const Statistics = ({ categories, currentDate }) => {
             </div>
             <div style={{ padding: '15px' }}>
                 {loading && !overview.totalIncome && !overview.totalExpense ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}><i className="fas fa-spinner fa-spin"></i> 正在生成状态...</div>
+                    <div>
+                        <div style={{ display: 'flex', gap: 12, marginBottom: 15 }}>
+                            <div style={{ flex: 1 }}><SkeletonStatCard /></div>
+                            <div style={{ flex: 1 }}><SkeletonStatCard /></div>
+                            <div style={{ flex: 1 }}><SkeletonStatCard /></div>
+                        </div>
+                        <SkeletonChart height={260} />
+                        <SkeletonChart height={280} />
+                    </div>
                 ) : (
                     <>
-                        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)' }}>
-                            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px' }}>{year}年{month}月概览</div>
+                        <div className="card">
+                            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px', color: 'var(--text-main)' }}>{year}年{month}月概览</div>
                             <div style={{ display: 'flex', justifyContent: 'space-around' }}>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ color: '#999', fontSize: '12px' }}>总收入</div>
+                                    <div style={{ color: 'var(--text-sub)', fontSize: '12px' }}>总收入</div>
                                     <div style={{ color: '#4CAF50', fontSize: '18px', fontWeight: 'bold' }}>¥{parseFloat(overview.totalIncome || 0).toFixed(2)}</div>
                                 </div>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ color: '#999', fontSize: '12px' }}>总支出</div>
+                                    <div style={{ color: 'var(--text-sub)', fontSize: '12px' }}>总支出</div>
                                     <div style={{ color: '#f44336', fontSize: '18px', fontWeight: 'bold' }}>¥{parseFloat(overview.totalExpense || 0).toFixed(2)}</div>
                                 </div>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ color: '#999', fontSize: '12px' }}>结余</div>
+                                    <div style={{ color: 'var(--text-sub)', fontSize: '12px' }}>结余</div>
                                     <div style={{ color: '#2196F3', fontSize: '18px', fontWeight: 'bold' }}>¥{parseFloat(overview.balance || 0).toFixed(2)}</div>
                                 </div>
                             </div>
                         </div>
 
-                        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)' }}>
-                            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px' }}>分类支出占比</div>
+                        <div className="card">
+                            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px', color: 'var(--text-main)' }}>分类支出占比</div>
                             <div ref={pieRef} style={{ width: '100%', height: '260px' }}></div>
                         </div>
 
-                        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)' }}>
-                            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px' }}>近6月收支趋势</div>
+                        <div className="card">
+                            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px', color: 'var(--text-main)' }}>近6月收支趋势</div>
                             <div ref={barRef} style={{ width: '100%', height: '280px' }}></div>
                         </div>
                     </>

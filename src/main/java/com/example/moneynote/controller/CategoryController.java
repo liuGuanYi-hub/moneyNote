@@ -20,34 +20,25 @@ public class CategoryController {
     @GetMapping
     public ApiResponse<List<Category>> getCategories(
             @RequestParam(required = false) String type) {
-        try {
-            List<Category> categories;
-            if (type != null && (type.equals("expense") || type.equals("income"))) {
-                categories = categoryService.getCategoriesByType(type, null);
-            } else {
-                categories = categoryService.getAllCategories(null);
-            }
-            return ApiResponse.success(categories);
-        } catch (Exception e) {
-            return ApiResponse.error("获取分类失败: " + e.getMessage());
+        List<Category> categories;
+        if (type != null && (type.equals("expense") || type.equals("income"))) {
+            categories = categoryService.getCategoriesByType(type, null);
+        } else {
+            categories = categoryService.getAllCategories(null);
         }
+        return ApiResponse.success(categories);
     }
 
-    // 升级：为了安全起见，移除了 @PathVariable userId，直接从安全上下文获取
     @GetMapping("/user/me")
     public ApiResponse<List<Category>> getUserCategories(
             @RequestParam(required = false) String type) {
-        try {
-            Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            List<Category> categories;
-            if (type != null && (type.equals("expense") || type.equals("income"))) {
-                categories = categoryService.getCategoriesByType(type, userId);
-            } else {
-                categories = categoryService.getAllCategories(userId);
-            }
-            return ApiResponse.success(categories);
-        } catch (Exception e) {
-            return ApiResponse.error("获取分类失败: " + e.getMessage());
+        Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<Category> categories;
+        if (type != null && (type.equals("expense") || type.equals("income"))) {
+            categories = categoryService.getCategoriesByType(type, userId);
+        } else {
+            categories = categoryService.getAllCategories(userId);
         }
+        return ApiResponse.success(categories);
     }
 }

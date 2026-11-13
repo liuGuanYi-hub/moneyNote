@@ -1,22 +1,21 @@
-import { authService } from './auth';
+import { useAuthStore } from '../stores/authStore';
 
-const API_BASE = 'http://localhost:8080/api';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080/api';
 
 export const apiFetch = async (path, { method = 'GET', body, auth = false } = {}) => {
     try {
         const headers = { 'Content-Type': 'application/json' };
         if (auth) {
-            const token = authService.getToken();
+            const token = useAuthStore.getState().token;
             if (!token) {
-                authService.clear();
-                // We'll handle redirection in the component layer or with a global event
+                useAuthStore.getState().logout();
                 throw new Error('未登录，请先登录');
             }
             headers['Authorization'] = `Bearer ${token}`;
         }
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const res = await fetch(`${API_BASE}${path}`, {
             method,
@@ -27,7 +26,7 @@ export const apiFetch = async (path, { method = 'GET', body, auth = false } = {}
 
         if (!res.ok) {
             if (res.status === 401) {
-                authService.clear();
+                useAuthStore.getState().logout();
                 throw new Error('登录已过期，请重新登录');
             }
             const errorText = await res.text().catch(() => '');

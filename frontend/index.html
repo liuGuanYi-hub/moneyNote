@@ -10,7 +10,16 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <script>
+    // 在 React 渲染前同步读取暗黑模式，杜绝颜色闪烁
+    try {
+      var _d = JSON.parse(localStorage.getItem('moneyNote-app'));
+      if (_d && _d.state && _d.state.darkMode) document.body.classList.add('dark-mode');
+    } catch(e) {}
+    // 根节点样式重置：确保全屏无白边
+    document.documentElement.style.cssText = 'margin:0;padding:0;height:100%';
+  </script>
+  <div id="root" style="height:100%"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

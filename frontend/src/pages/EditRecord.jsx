@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../services/api';
+import { useCategoryStore } from '../stores/categoryStore';
+import { useAppStore } from '../stores/appStore';
+import { toast } from '../stores/toastStore';
 
-const EditRecord = ({ onBack, categories, record, onSuccess }) => {
+const EditRecord = ({ onSuccess }) => {
+    const categories = useCategoryStore(s => ({ expense: s.expense, income: s.income }));
+    const record = useAppStore(s => s.editingRecord);
+    const navigate = useNavigate();
     const [amount, setAmount] = useState(record?.amount || 0);
     const [categoryId, setCategoryId] = useState(record?.categoryId || '');
     const [recordDate, setRecordDate] = useState(record?.recordDate || '');
@@ -12,7 +19,7 @@ const EditRecord = ({ onBack, categories, record, onSuccess }) => {
     const cats = isExpense ? categories.expense : categories.income;
 
     const handleSave = async () => {
-        if (!amount || !categoryId || !recordDate) return alert("请填写完整信息");
+        if (!amount || !categoryId || !recordDate) return toast.error("请填写完整信息");
 
         setLoading(true);
         try {
@@ -27,11 +34,10 @@ const EditRecord = ({ onBack, categories, record, onSuccess }) => {
                     recordDate: recordDate
                 }
             });
-            alert('🎉 修改成功！');
             if (onSuccess) onSuccess();
-            onBack();
+            navigate('/');
         } catch (e) {
-            alert('修改失败: ' + e.message);
+            toast.error('修改失败: ' + e.message);
         } finally {
             setLoading(false);
         }
@@ -42,18 +48,18 @@ const EditRecord = ({ onBack, categories, record, onSuccess }) => {
     return (
         <div id="page-edit-record" className="page-fullscreen" style={{ display: 'flex', zIndex: 500 }}>
             <div className="common-header">
-                <i className="fas fa-chevron-left back-btn" onClick={onBack}></i>
+                <i className="fas fa-chevron-left back-btn" onClick={() => navigate('/')}></i>
                 <div className="header-title">编辑记录</div>
                 <div style={{ width: '25px' }}></div>
             </div>
             <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
-                <div style={{ background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+                <div className="card">
                     <div className="form-group" style={{ marginBottom: '20px' }}>
-                        <label style={{ color: '#999', fontSize: '12px', display: 'block', marginBottom: '5px' }}>账单类型</label>
-                        <input type="text" className="form-input" value={isExpense ? '支出' : '收入'} disabled style={{ color: '#999', background: '#f9f9f9', borderBottom: 'none', borderRadius: '8px' }} />
+                        <label className="form-label">账单类型</label>
+                        <input type="text" className="form-input" value={isExpense ? '支出' : '收入'} disabled style={{ color: 'var(--text-sub)', background: 'var(--hover-bg)', borderBottom: 'none', borderRadius: '8px' }} />
                     </div>
                     <div className="form-group" style={{ marginBottom: '20px' }}>
-                        <label style={{ color: '#999', fontSize: '12px', display: 'block', marginBottom: '5px' }}>修改金额 (¥)</label>
+                        <label className="form-label">修改金额 (¥)</label>
                         <input
                             type="number"
                             className="form-input"
@@ -64,18 +70,18 @@ const EditRecord = ({ onBack, categories, record, onSuccess }) => {
                         />
                     </div>
                     <div className="form-group" style={{ marginBottom: '20px' }}>
-                        <label style={{ color: '#999', fontSize: '12px', display: 'block', marginBottom: '5px' }}>修改分类</label>
+                        <label className="form-label">修改分类</label>
                         <select
                             className="form-input"
                             value={categoryId}
                             onChange={e => setCategoryId(e.target.value)}
-                            style={{ width: '100%', border: 'none', borderBottom: '1px solid #ddd', outline: 'none', fontSize: '16px', background: 'transparent', padding: '10px 0' }}
+                            style={{ width: '100%', border: 'none', borderBottom: '1px solid var(--border-color)', outline: 'none', fontSize: '16px', background: 'transparent', padding: '10px 0', color: 'var(--text-main)' }}
                         >
-                            {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            {cats.map(c => <option key={c.id} value={c.id} style={{ background: 'var(--card-bg)', color: 'var(--text-main)' }}>{c.name}</option>)}
                         </select>
                     </div>
                     <div className="form-group" style={{ marginBottom: '20px' }}>
-                        <label style={{ color: '#999', fontSize: '12px', display: 'block', marginBottom: '5px' }}>修改日期</label>
+                        <label className="form-label">修改日期</label>
                         <input
                             type="date"
                             className="form-input"
@@ -84,7 +90,7 @@ const EditRecord = ({ onBack, categories, record, onSuccess }) => {
                         />
                     </div>
                     <div className="form-group" style={{ marginBottom: '30px' }}>
-                        <label style={{ color: '#999', fontSize: '12px', display: 'block', marginBottom: '5px' }}>备注说明</label>
+                        <label className="form-label">备注说明</label>
                         <input
                             type="text"
                             className="form-input"

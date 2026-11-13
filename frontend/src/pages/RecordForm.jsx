@@ -1,8 +1,13 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { apiFetch } from '../services/api';
+import { useCategoryStore } from '../stores/categoryStore';
+import { toast } from '../stores/toastStore';
 
-const RecordForm = ({ onBack, categories, onSuccess }) => {
+const RecordForm = ({ onSuccess }) => {
+    const categories = useCategoryStore(s => ({ expense: s.expense, income: s.income }));
+    const navigate = useNavigate();
     const [amountStr, setAmountStr] = useState('0.00');
     const [currentType, setCurrentType] = useState('expense');
     const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -45,7 +50,7 @@ const RecordForm = ({ onBack, categories, onSuccess }) => {
     const handleSubmit = async () => {
         const amount = parseFloat(amountStr);
         if (amount <= 0 || !selectedCategoryId) {
-            alert('请选择分类并输入有效金额');
+            toast.error('请选择分类并输入有效金额');
             return;
         }
 
@@ -76,10 +81,10 @@ const RecordForm = ({ onBack, categories, onSuccess }) => {
 
             setTimeout(() => {
                 if (onSuccess) onSuccess();
-                onBack();
+                navigate('/');
             }, 500);
         } catch (e) {
-            alert('记账失败: ' + e.message);
+            toast.error('记账失败: ' + e.message);
         } finally {
             setLoading(false);
         }
@@ -88,7 +93,7 @@ const RecordForm = ({ onBack, categories, onSuccess }) => {
     return (
         <div id="page-record" className="page-fullscreen" style={{ display: 'flex' }}>
             <div className="record-header-bar">
-                <i className="fas fa-chevron-left back-btn" onClick={onBack}></i>
+                <i className="fas fa-chevron-left back-btn" onClick={() => navigate('/')}></i>
                 <div className="type-switch">
                     <div
                         className={`type-btn ${currentType === 'expense' ? 'active' : ''}`}
@@ -122,7 +127,7 @@ const RecordForm = ({ onBack, categories, onSuccess }) => {
             <div className="keyboard-area">
                 <div className="input-display">
                     <div style={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
-                        <i className={`fas ${selectedCat.icon}`} style={{ marginRight: '10px', color: '#FFDA44', fontSize: '24px' }}></i>
+                        <i className={`fas ${selectedCat.icon}`} style={{ marginRight: '10px', color: 'var(--primary-color)', fontSize: '24px' }}></i>
                         <span>{selectedCat.name}</span>
                     </div>
                     <div className="input-value">{amountStr}</div>
@@ -133,7 +138,7 @@ const RecordForm = ({ onBack, categories, onSuccess }) => {
                         placeholder="添加备注（可选）"
                         value={remark}
                         onChange={e => setRemark(e.target.value)}
-                        style={{ width: '100%', padding: '10px', border: 'none', borderBottom: '1px solid #eee', outline: 'none', fontSize: '14px', background: 'transparent' }}
+                        style={{ width: '100%', padding: '10px', border: 'none', borderBottom: '1px solid var(--border-color)', outline: 'none', fontSize: '14px', background: 'transparent', color: 'var(--text-main)' }}
                     />
                 </div>
                 <div className="keypad">
